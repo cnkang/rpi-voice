@@ -43,7 +43,12 @@ jobs:
         run: |
           pactl info
           pactl list sinks
-
+          
+      - name: Configure ALSA to use PulseAudio
+        run: |
+            echo 'pcm.!default { type pulse }' >> ~/.asoundrc
+            echo 'ctl.!default { type pulse }' >> ~/.asoundrc
+  
       - name: Generate coverage report
         env:
           PULSE_SERVER: 127.0.0.1
