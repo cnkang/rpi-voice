@@ -1,8 +1,8 @@
 import os
 import asyncio
 from dotenv import load_dotenv
-import azure.cognitiveservices.speech as speechsdk
 from openai import AsyncAzureOpenAI
+import azure.cognitiveservices.speech as speechsdk
 
 # Load environment variables
 load_dotenv()
@@ -13,6 +13,8 @@ voice_name = os.getenv('VOICE_NAME', "zh-CN-XiaoxiaoMultilingualNeural")
 async def create_client():
     """
     Asynchronously creates a client for the Azure OpenAI service.
+    Returns:
+        AsyncAzureOpenAI: An instance of the Azure OpenAI client configured with API keys and endpoint.
     """
     return AsyncAzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
@@ -27,10 +29,11 @@ async def recognize_speech():
     speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_KEY"), region=os.getenv("AZURE_SPEECH_REGION"))
     audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
     recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
-    
+
     print("Listening...")
-    result = await recognizer.recognize_once_async()
-    
+    task = recognizer.recognize_once_async()
+    result = await asyncio.wrap_future(task)  # Proper way to await on a Future object in asyncio
+
     if result.reason == speechsdk.ResultReason.RecognizedSpeech:
         print("Recognized: {}".format(result.text))
         return result.text
@@ -41,12 +44,17 @@ async def recognize_speech():
         print("Speech Recognition canceled: ", cancellation_details.reason)
         if cancellation_details.reason == speechsdk.CancellationReason.Error:
             print("Error details: ", cancellation_details.error_details)
-    
+
     return ""
 
 async def call_openai_chat(client, messages):
     """
     Sends messages to the Azure OpenAI chat model and awaits the response.
+    Args:
+        client (AsyncAzureOpenAI): The Azure OpenAI client.
+        messages (list): A list of message dictionaries defining the role and content.
+    Returns:
+        str: The content of the response message or a default message if no response is generated.
     """
     response = await client.chat.completions.create(
         model=os.getenv("MODEL_NAME"),
@@ -62,6 +70,8 @@ async def call_openai_chat(client, messages):
 def text_to_speech(ssml):
     """
     Converts SSML text to speech using the Azure Cognitive Services Speech SDK.
+    Args:
+        ssml (str): The SSML string to be synthesized.
     """
     speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_KEY"), region=os.getenv("AZURE_SPEECH_REGION"))
     speech_config.speech_synthesis_voice_name = voice_name
@@ -81,6 +91,10 @@ def text_to_speech(ssml):
 def convert_to_ssml(text):
     """
     Converts plain text to SSML format.
+    Args:
+        text (str): Plain text to be converted.
+    Returns:
+        str: Text wrapped in SSML tags.
     """
     return f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>{text}</speak>"
 
