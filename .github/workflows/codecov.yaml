@@ -33,11 +33,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pulseaudio
-          echo "default-sample-rate = 48000" >> /etc/pulse/daemon.conf
-          echo "load-module module-virtual-source source_name=vsource" | tee -a /etc/pulse/default.pa
-          echo "set-default-source vsource" | tee -a /etc/pulse/default.pa
-          pulseaudio --start
-          pactl info
+          sudo echo "default-sample-rate = 48000" >> /etc/pulse/daemon.conf
+          sudo echo "load-module module-virtual-source source_name=vsource" | tee -a /etc/pulse/default.pa
+          sudo echo "set-default-source vsource" | tee -a /etc/pulse/default.pa
+          sudo pulseaudio --start
+          sudo pactl info
           pip install -r requirements.txt
           pip install coverage
 
