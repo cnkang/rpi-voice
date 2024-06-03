@@ -39,16 +39,25 @@ jobs:
           pip install -r requirements.txt
           pip install coverage
 
-      - name: Check PulseAudio
+      - name: Modify user permissions and check audio
         run: |
+          sudo usermod -aG audio $USER
+          sudo chmod 666 /run/user/1001/pulse/native
+          pulseaudio --check
           pactl info
-          pactl list sinks
-          
+      
       - name: Configure ALSA to use PulseAudio
         run: |
             echo 'pcm.!default { type pulse }' >> ~/.asoundrc
             echo 'ctl.!default { type pulse }' >> ~/.asoundrc
-  
+      - name: Test simplified PulseAudio setup
+        run: |
+              pulseaudio --kill
+              pulseaudio --start --log-target=syslog
+              pactl load-module module-null-sink
+              pactl set-default-sink null
+              pactl info
+          
       - name: Generate coverage report
         env:
           PULSE_SERVER: 127.0.0.1
