@@ -94,7 +94,6 @@ jobs:
                 - name: Install Homebrew dependencies
                   run: |
                     brew install blackhole-2ch
-                    brew install coverage  # If coverage needs to be installed via brew
           
                 - name: Cache Python packages
                   uses: actions/cache@v4
