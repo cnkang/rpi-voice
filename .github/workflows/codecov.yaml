@@ -33,7 +33,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pulseaudio
-          sudo echo "default-sample-rate = 48000" >> /etc/pulse/daemon.conf
+          sudo echo "default-sample-rate = 48000" | tee -a /etc/pulse/daemon.conf
           sudo echo "load-module module-virtual-source source_name=vsource" | tee -a /etc/pulse/default.pa
           sudo echo "set-default-source vsource" | tee -a /etc/pulse/default.pa
           sudo pulseaudio --start
