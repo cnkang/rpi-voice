@@ -34,13 +34,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pulseaudio
           pulseaudio --start
-          pactl info
+          pactl load-module module-null-sink sink_name=virtual_speaker
+          pactl set-default-sink virtual_speaker
           pip install -r requirements.txt
           pip install coverage
 
       - name: Check PulseAudio
         run: |
           pactl info
+          pactl list sinks
 
       - name: Generate coverage report
         env:
