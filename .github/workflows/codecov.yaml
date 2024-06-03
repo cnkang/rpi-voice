@@ -33,13 +33,21 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pulseaudio
+          echo "default-sample-rate = 48000" >> /etc/pulse/daemon.conf
+          echo "load-module module-virtual-source source_name=vsource" | tee -a /etc/pulse/default.pa
+          echo "set-default-source vsource" | tee -a /etc/pulse/default.pa
           pulseaudio --start
-          echo "PULSE_SERVER=127.0.0.1" >> $GITHUB_ENV
+          pactl info
           pip install -r requirements.txt
           pip install coverage
 
+      - name: Check PulseAudio
+        run: |
+          pactl info
+
       - name: Generate coverage report
         env:
+          PULSE_SERVER: 127.0.0.1
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
