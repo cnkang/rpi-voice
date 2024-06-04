@@ -8,53 +8,80 @@ import azure.cognitiveservices.speech as speechsdk
 load_dotenv()
 
 # Retrieve the preferred voice name from environment, defaulting to "zh-CN-XiaoxiaoMultilingualNeural"
-voice_name = os.getenv('VOICE_NAME', "zh-CN-XiaoxiaoMultilingualNeural")
+voice_name = os.getenv("AZURE_VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
+
 
 async def create_client():
-    """
-    Asynchronously creates a client for the Azure OpenAI service.
-    Returns:
-        AsyncAzureOpenAI: An instance of the Azure OpenAI client configured with API keys and endpoint.
-    """
+    """Asynchronously creates a client for the Azure OpenAI service."""
     return AsyncAzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         api_version=os.getenv("AZURE_API_VERSION"),
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     )
 
-async def recognize_speech():
-    """
-    Captures audio from the default microphone and recognizes speech using Azure Cognitive Services.
-    """
-    speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_KEY"), region=os.getenv("AZURE_SPEECH_REGION"))
-    audio_config = speechsdk.audio.AudioConfig(use_default_microphone=True)
-    recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
 
-    print("Listening...")
-    task = recognizer.recognize_once_async()
-    result = await asyncio.wrap_future(task)  # Proper way to await on a Future object in asyncio
+def get_speech_config():
+    """
+    Configure the speech recognition service.
+    """
+    subscription = os.getenv("AZURE_SPEECH_KEY")
+    region = os.getenv("AZURE_SPEECH_REGION")
+    if not (subscription and region):
+        raise EnvironmentError("Environment variables for Azure Speech Service not set")
+    return speechsdk.SpeechConfig(subscription=subscription, region=region)
 
+
+def get_auto_detect_language_config():
+    """
+    Specify a list of languages for automatic detection.
+    """
+    return speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=[
+        "en-US", "zh-CN", "zh-TW", "zh-HK"
+    ])
+
+
+def recognize_speech(speech_recognizer):
+    """
+    Recognize speech input from the microphone.
+    """
+    print("Speak now.")
+    result = speech_recognizer.recognize_once_async().get()
+    return process_speech_result(result)
+
+
+def process_speech_result(result):
+    """
+    Process speech recognition result.
+    """
     if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-        print("Recognized: {}".format(result.text))
+        print(f"Recognized: {result.text}")
         return result.text
     elif result.reason == speechsdk.ResultReason.NoMatch:
-        print("No speech could be recognized")
+        print(f"No speech recognized: {result.no_match_details}")
     elif result.reason == speechsdk.ResultReason.Canceled:
-        cancellation_details = result.cancellation_details
-        print("Speech Recognition canceled: ", cancellation_details.reason)
-        if cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print("Error details: ", cancellation_details.error_details)
-
+        print(f"Recognition canceled: {result.cancellation_details.reason}")
+        if result.cancellation_details.reason == speechsdk.CancellationReason.Error:
+            print(f"Error: {result.cancellation_details.error_details}")
     return ""
 
-async def call_openai_chat(client, messages):
+
+async def speech_to_text():
     """
-    Sends messages to the Azure OpenAI chat model and awaits the response.
-    Args:
-        client (AsyncAzureOpenAI): The Azure OpenAI client.
-        messages (list): A list of message dictionaries defining the role and content.
-    Returns:
-        str: The content of the response message or a default message if no response is generated.
+    Convert speech to text.
+    """
+    try:
+        speech_config = get_speech_config()
+        language_config = get_auto_detect_language_config()
+        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, auto_detect_source_language_config=language_config)
+        return recognize_speech(recognizer)
+    except EnvironmentError as e:
+        print(str(e))
+        return ""
+
+
+async def call_openai(client, messages):
+    """
+    Send messages to OpenAI and get response.
     """
     response = await client.chat.completions.create(
         model=os.getenv("MODEL_NAME"),
@@ -63,57 +90,56 @@ async def call_openai_chat(client, messages):
         temperature=0.7,
         top_p=1,
         frequency_penalty=0,
-        presence_penalty=0
+        presence_penalty=0,
     )
-    return response.choices[0].message.content if response.choices else "No response generated."
+    return response.choices[0].message.content if response.choices else "No response returned."
 
-def text_to_speech(ssml):
+
+def text_to_speech(text):
     """
-    Converts SSML text to speech using the Azure Cognitive Services Speech SDK.
-    Args:
-        ssml (str): The SSML string to be synthesized.
+    Convert text to speech.
     """
-    speech_config = speechsdk.SpeechConfig(subscription=os.getenv("AZURE_SPEECH_KEY"), region=os.getenv("AZURE_SPEECH_REGION"))
+    speech_config = get_speech_config()
     speech_config.speech_synthesis_voice_name = voice_name
-
     audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
     synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
-    result = synthesizer.speak_ssml_async(ssml).get()
+    result = synthesizer.speak_ssml_async(convert_to_ssml(text)).get()
 
     if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        print("Speech synthesized to speaker for SSML.")
+        print("Speech synthesized.")
     elif result.reason == speechsdk.ResultReason.Canceled:
-        cancellation_details = result.cancellation_details
-        print("Speech synthesis canceled: ", cancellation_details.reason)
-        if cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print("Error details: ", cancellation_details.error_details)
+        print(f"Synthesis canceled: {result.cancellation_details.reason}")
+        if result.cancellation_details.reason == speechsdk.CancellationReason.Error:
+            print(f"Error: {result.cancellation_details.error_details}")
+
 
 def convert_to_ssml(text):
     """
-    Converts plain text to SSML format.
-    Args:
-        text (str): Plain text to be converted.
-    Returns:
-        str: Text wrapped in SSML tags.
+    Convert text to SSML.
     """
     return f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>{text}</speak>"
 
+
 async def main():
     """
-    Main asynchronous function to handle the creation of the client, capturing and transcribing audio, sending messages, and synthesizing responses.
+    Main function to sequence operations.
     """
     client = await create_client()
-    recognized_text = await recognize_speech()
+    recognized_text = await speech_to_text()
 
     if recognized_text:
         messages = [
-            {"role": "system", "content": f"Please respond naturally in the same language as the user, using human-like expressions and emotions. Begin with the <voice> tag using the voice named '{voice_name}'. Ensure all tags are properly closed. Your responses should reflect understanding, empathy, and adaptability, focusing solely on the textual and emotional content without revealing your AI nature."},
-            {"role": "user", "content": recognized_text}
+            {
+                "role": "system",
+                "content": f"Please respond naturally in the same language as the user, using human-like expressions and emotions. Begin with the <voice> tag using the voice named '{voice_name}'. Ensure all tags are properly closed. Your responses should reflect understanding, empathy, and adaptability, focusing solely on the textual and emotional content without revealing your AI nature.",
+            },
+            {"role": "user", "content": recognized_text},
         ]
-        response_text = await call_openai_chat(client, messages)
+        response_text = await call_openai(client, messages)
         print("AI Response:", response_text)
         ssml_response = convert_to_ssml(response_text)
         text_to_speech(ssml_response)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(main())
