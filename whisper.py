@@ -1,8 +1,8 @@
-import time
 import numpy as np
 import sounddevice as sd
 from scipy.io.wavfile import write
 import tempfile
+import random
 import os
 import webrtcvad
 from dotenv import load_dotenv
@@ -19,9 +19,10 @@ client = AzureOpenAI(
 )
 
 def array_to_bytes(audio_array, sample_rate):
-    temp_audio_file_path = os.path.join(tempfile.gettempdir(), "temp_audio.wav")
-    write(temp_audio_file_path, sample_rate, audio_array.astype(np.int16))
-    return temp_audio_file_path
+    random_digits = str(random.randint(10000000, 99999999))
+    tmp_audio_file_path = os.path.join(tempfile.gettempdir(), f"temp_audio_{random_digits}.wav")
+    write(tmp_audio_file_path, sample_rate, audio_array.astype(np.int16))
+    return tmp_audio_file_path
 
 def record_audio_vad(max_duration=120, sample_rate=16000):
     vad = webrtcvad.Vad(1)  # Medium sensitivity mode
