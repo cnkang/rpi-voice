@@ -3,6 +3,8 @@ import asyncio
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 import azure.cognitiveservices.speech as speechsdk
+from tts import TextToSpeech  # 导入 TextToSpeech 类
+
 
 # Load environment variables
 load_dotenv()
@@ -97,21 +99,14 @@ async def call_openai(client, messages):
 
 def text_to_speech(text):
     """
-    Convert text to speech.
+    Convert text to speech using TextToSpeech class from tts.py.
     """
-    speech_config = get_speech_config()
-    speech_config.speech_synthesis_voice_name = voice_name
-    audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
-    synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
-    result = synthesizer.speak_ssml_async(convert_to_ssml(text)).get()
-
-    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        print("Speech synthesized.")
-    elif result.reason == speechsdk.ResultReason.Canceled:
-        print(f"Synthesis canceled: {result.cancellation_details.reason}")
-        if result.cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print(f"Error: {result.cancellation_details.error_details}")
-
+    tts = TextToSpeech()  # Instantiate the TTS class
+    audio_stream = tts.synthesize_speech(text)
+    if audio_stream:
+        tts.play_speech(audio_stream)
+    else:
+        print("Failed to synthesize speech")
 
 def convert_to_ssml(text):
     """
@@ -131,15 +126,13 @@ async def main():
         messages = [
             {
                 "role": "system",
-                "content": f"Please respond naturally in the same language as the user, using human-like expressions and emotions. Begin with the <voice> tag using the voice named '{voice_name}'. Ensure all tags are properly closed. Your responses should reflect understanding, empathy, and adaptability, focusing solely on the textual and emotional content without revealing your AI nature.",
+                "content": f"Please respond naturally in the same language as the user, using human-like expressions and emotions. Ensure all responses reflect understanding and empathy.",
             },
             {"role": "user", "content": recognized_text},
         ]
         response_text = await call_openai(client, messages)
         print("AI Response:", response_text)
-        ssml_response = convert_to_ssml(response_text)
-        text_to_speech(ssml_response)
-
+        text_to_speech(response_text)
 
 if __name__ == "__main__":
     asyncio.run(main())
