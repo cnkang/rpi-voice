@@ -2,4 +2,3 @@ openai
 azure-cognitiveservices-speech
 python-dotenv
 pydub
-simpleaudio
