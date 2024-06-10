@@ -1,8 +1,10 @@
 import os
 import requests
 import logging
+import io
 from dotenv import load_dotenv
-
+from pydub import AudioSegment
+from pydub.playback import play
 # Load environment variables
 load_dotenv()
 
@@ -16,9 +18,9 @@ headers = {
 }
 
 data = {
-    "model": "tts-1-hd",
+    "model": os.getenv("TTS_MODEL_NAME", 'tts-1-hd'),  # Use default value if env var is not set
     "input": "Today is a wonderful day to build something people love!",
-    "voice": "alloy"
+    "voice": os.getenv("TTS_VOICE_NAME", 'alloy')  # Use default voice if env var is not set
 }
 
 # Construct the URL for the request
@@ -27,17 +29,17 @@ api_version = '2024-02-15-preview'  # Update as needed
 deployment_name = os.getenv("TTS_MODEL_NAME", 'tts-1-hd')  # Update with your actual deployment name
 url = f"{endpoint}/openai/deployments/{deployment_name}/audio/speech?api-version={api_version}"
 
-
 # Perform the POST request
 try:
-    response = requests.post(url, headers=headers, json=data, stream=True)
-
+    response = requests.post(url, headers=headers, json=data)
     if response.status_code == 200:
-        # Save the audio file
-        with open('speech.mp3', 'wb') as f:
-            for chunk in response.iter_content(chunk_size=1024): 
-                f.write(chunk)
-        logging.info("Speech synthesized successfully and saved to 'speech.mp3'.")
+        # Convert audio bytes to AudioSegment
+        audio = AudioSegment.from_file(io.BytesIO(response.content), format="mp3")
+        logging.info("Speech synthesized successfully.")
+        # Play the audio file
+        logging.info("Playing the speech...")
+        play(audio)
+
     else:
         logging.error(f"Failed to synthesize speech: {response.status_code} {response.text}")
 
