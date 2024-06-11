@@ -33,21 +33,19 @@ async def transcribe_speech_to_text():
         return ""
 
 async def interact_with_openai(client, prompts):
-    """Sends prompts to OpenAI and returns the response."""
-    try:
-        result = await client.chat.completions.create(
-            model_name=os.getenv("MODEL_NAME"),
-            messages=prompts,
-            max_tokens=1024,
-            temperature=0.7,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0
+    """
+    Send messages to OpenAI and get response.
+    """
+    response = await client.chat.completions.create(
+        model=os.getenv("MODEL_NAME"),
+        messages=prompts,
+        max_tokens=4096,
+        temperature=0.7,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
     )
-        return result.choices[0].message.content if result.choices else "No response received."
-    except Exception as e:
-        print("Error querying OpenAI:", str(e))
-        return "Error while querying OpenAI."
+    return response.choices[0].message.content if response.choices else "No response returned."
 
 
 def synthesize_and_play_speech(tscript):
