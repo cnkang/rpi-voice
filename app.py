@@ -64,15 +64,16 @@ async def main():
     openai_client = await create_openai_client()
     text_transcript = await transcribe_speech_to_text()
     if text_transcript:
-        interactions = [
+        messages = [
             {
                 "role": "system",
-                "content": "You are a helpful voice assistant, respond naturally using the same language as the user, with human-like expressions and empathetic responses.",
+                "content": f"You are a helpful voice assistant. Please respond naturally in the same language as the user, using human-like expressions and emotions. Your responses should reflect understanding, empathy, and adaptability, focusing solely on the textual and emotional content without revealing your AI nature.",
             },
             {"role": "user", "content": text_transcript},
         ]
-        response_text = await interact_with_openai(openai_client, interactions)
+        response_text = await interact_with_openai(openai_client, messages)
         print("OpenAI Response:", response_text)
         synthesize_and_play_speech(response_text)
+
 if __name__ == "__main__":
     asyncio.run(main())
