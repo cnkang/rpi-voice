@@ -76,6 +76,7 @@ class WhisperSTT:
                         model=os.getenv("WHISPER_MODEL_NAME"),
                         file=audio_file
                     )
+                    logging.info("Transcript text: %s",transcript.text)
                     return transcript.text
                 except Exception as e:
                     logging.error("Error transcribing audio: %s", e)
