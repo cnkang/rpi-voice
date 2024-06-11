@@ -8,7 +8,7 @@ from pydub.playback import play
 
 # Configuration and setup
 load_dotenv()
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class TextToSpeech:
     def __init__(self):
