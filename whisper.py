@@ -4,95 +4,90 @@ from scipy.io.wavfile import write
 import tempfile
 import random
 import os
+import logging
 import webrtcvad
 from dotenv import load_dotenv
 from openai import AzureOpenAI
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class WhisperSTT:
     def __init__(self):
         # Load environment variables
         load_dotenv()
         
-        # Initialize Azure OpenAI client
+        # Initialize Azure OpenAI client with the necessary credentials
         self.client = AzureOpenAI(
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
             api_version=os.getenv("AZURE_API_VERSION")
         )
-        self.sample_rate = 16000  # Sample rate for audio recording
+        self.sample_rate = 16000  # Sample rate for audio recording, suitable for voice
 
     def array_to_bytes(self, audio_array):
-        # Generate a random filename and temp path for saving an audio file
+        # Generate a random filename for the temporary audio file
         random_digits = str(random.randint(10000000, 99999999))
         tmp_audio_file_path = os.path.join(tempfile.gettempdir(), f"temp_audio_{random_digits}.wav")
-        # Write the numpy audio array to the WAV file at the generated path
+        # Write the numpy array to a WAV file
         write(tmp_audio_file_path, self.sample_rate, audio_array.astype(np.int16))
         return tmp_audio_file_path
 
     def record_audio_vad(self, max_duration=120):
-        # Setup voice activity detector with highest sensitivity
+        # Initialize Voice Activity Detector with an aggressiveness mode
         vad = webrtcvad.Vad(3)
-        print("Recording...")
+        logging.info("Start recording...")
 
-        # To keep track of recorded audio frames
-        recorded_frames = []
-        current_silence_duration = 0
-        max_silence_duration = 1
-        # Calculate number of silent frames after which recording should stop
-        num_silent_frames_to_stop = int(max_silence_duration * self.sample_rate / 160)
-
+        recorded_frames = []  # to store audio frames
+        current_silence_duration = 0  # to track duration of non-speaking segments
+        max_silence_duration = 1  # maximum allowed silence duration in seconds
+        num_silent_frames_to_stop = int(max_silence_duration * self.sample_rate / 160)  # compute the number of silent frames permitted before stopping
         recording_active = True
         def callback(indata, frames, time_x, status):
-            # Callback function to process blocks of audio input
             nonlocal current_silence_duration, recording_active
             if status and status.input_overflow:
-                print("Input overflow:", status)
-            # Check if the current frame contains speech
-            is_speech = sum(vad.is_speech(frame.tobytes(), self.sample_rate) for frame in np.split(indata, np.arange(160, len(indata), 160)))
+                logging.warning("Input overflow: %s", status)
+            is_speech = sum(vad.is_speech(frame.tobytes(), self.sample_rate) for frame in np.split(indata, np.arange(160, len(indata), 160)))  # detect speech activity within the frame
             if is_speech > 0:
                 current_silence_duration = 0
             else:
                 current_silence_duration += 1
             recorded_frames.append(indata.copy())
-            # Stop recording if enough silence or max duration is reached
             if current_silence_duration >= num_silent_frames_to_stop or len(recorded_frames) * (160 / self.sample_rate) >= max_duration:
                 recording_active = False
         try:
+            # Continuously record audio while 'recording_active' is True
             with sd.InputStream(callback=callback, samplerate=self.sample_rate, channels=1, dtype='int16', blocksize=160):
                 while recording_active:
                     sd.sleep(100)
         except Exception as e:
-            print("Error occurred during recording:", e)
-        print("Recording finished.")
+            logging.error("Error occurred during recording: %s", e)
+        logging.info("Recording finished.")
         return np.concatenate(recorded_frames)
 
     def transcribe_audio(self, audio_array):
-        # Convert audio array to WAV file
+        # Convert the audio array to bytes and save as a temporary file
         temp_file_path = self.array_to_bytes(audio_array)
         try:
-            # Open and process audio file for transcription
             with open(temp_file_path, "rb") as audio_file:
                 try:
-                    # Perform transcription using Whisper model
+                    # Make a request to transcribe the audio file
                     transcript = self.client.audio.transcriptions.create(
                         model=os.getenv("WHISPER_MODEL_NAME"),
                         file=audio_file
                     )
                     return transcript.text
                 except Exception as e:
-                    print("Error transcribing audio:", e)
+                    logging.error("Error transcribing audio: %s", e)
                     return "Failed to transcribe audio"
         finally:
-            # Clean up temporary audio file
+            # Cleanup the temporary file used for storing the audio
             self.cleanup_temp_file(temp_file_path)
 
     def cleanup_temp_file(self, file_path):
-        # Remove temporary file from file system
-        os.unlink(file_path)
-
+        os.unlink(file_path)  # Remove the file from the filesystem
 if __name__ == '__main__':
-    # Example code to use the class
     whisper_stt = WhisperSTT()
     recorded_audio = whisper_stt.record_audio_vad()
     transcript = whisper_stt.transcribe_audio(recorded_audio)
-    print(transcript)  # Print out the transcription result
+    logging.info("Transcription result: %s", transcript)
