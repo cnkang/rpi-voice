@@ -2,137 +2,77 @@ import os
 import asyncio
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
-import azure.cognitiveservices.speech as speechsdk
-from tts import TextToSpeech  # 导入 TextToSpeech 类
-
-
+from tts import TextToSpeech
+from whisper import WhisperSTT
 # Load environment variables
 load_dotenv()
 
-# Retrieve the preferred voice name from environment, defaulting to "zh-CN-XiaoxiaoMultilingualNeural"
-voice_name = os.getenv("AZURE_VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
-
-
-async def create_client():
-    """Asynchronously creates a client for the Azure OpenAI service."""
+# Retrieve the voice name from the .env or use default
+voice_name = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
+async def create_openai_client():
+    """Creates an async client for OpenAI using environment variables."""
     return AsyncAzureOpenAI(
         api_key=os.getenv("AZURE_OPENAI_API_KEY"),
         api_version=os.getenv("AZURE_API_VERSION"),
         azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     )
 
-
-def get_speech_config():
-    """
-    Configure the speech recognition service.
-    """
-    subscription = os.getenv("AZURE_SPEECH_KEY")
-    region = os.getenv("AZURE_SPEECH_REGION")
-    if not (subscription and region):
-        raise EnvironmentError("Environment variables for Azure Speech Service not set")
-    return speechsdk.SpeechConfig(subscription=subscription, region=region)
-
-
-def get_auto_detect_language_config():
-    """
-    Specify a list of languages for automatic detection.
-    """
-    return speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=[
-        "en-US", "zh-CN", "zh-TW", "zh-HK"
-    ])
-
-
-def recognize_speech(speech_recognizer):
-    """
-    Recognize speech input from the microphone.
-    """
-    print("Speak now.")
-    result = speech_recognizer.recognize_once_async().get()
-    return process_speech_result(result)
-
-
-def process_speech_result(result):
-    """
-    Process speech recognition result.
-    """
-    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-        print(f"Recognized: {result.text}")
-        return result.text
-    elif result.reason == speechsdk.ResultReason.NoMatch:
-        print(f"No speech recognized: {result.no_match_details}")
-    elif result.reason == speechsdk.ResultReason.Canceled:
-        print(f"Recognition canceled: {result.cancellation_details.reason}")
-        if result.cancellation_details.reason == speechsdk.CancellationReason.Error:
-            print(f"Error: {result.cancellation_details.error_details}")
-    return ""
-
-
-async def speech_to_text():
-    """
-    Convert speech to text.
-    """
+async def transcribe_speech_to_text():
+    """Converts speech to text using WhisperSTT and handles errors."""
     try:
-        speech_config = get_speech_config()
-        language_config = get_auto_detect_language_config()
-        recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, auto_detect_source_language_config=language_config)
-        return recognize_speech(recognizer)
-    except EnvironmentError as e:
-        print(str(e))
+        whisper = WhisperSTT()
+        loop = asyncio.get_running_loop()
+        
+        # Use run_in_executor to run synchronous code in a separate thread
+        audio = await loop.run_in_executor(None, whisper.record_audio_vad)
+        transcription = await loop.run_in_executor(None, whisper.transcribe_audio, audio)
+        
+        return transcription
+    except Exception as e:
+        print("Speech-to-text conversion error:", str(e))
         return ""
 
-
-async def call_openai(client, messages):
-    """
-    Send messages to OpenAI and get response.
-    """
-    response = await client.chat.completions.create(
-        model=os.getenv("MODEL_NAME"),
-        messages=messages,
-        max_tokens=4096,
-        temperature=0.7,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
+async def interact_with_openai(client, prompts):
+    """Sends prompts to OpenAI and returns the response."""
+    try:
+        result = await client.chat.completions.create(
+            model_name=os.getenv("MODEL_NAME"),
+            messages=prompts,
+            max_tokens=1024,
+            temperature=0.7,
+            top_p=1,
+            frequency_penalty=0,
+            presence_penalty=0
     )
-    return response.choices[0].message.content if response.choices else "No response returned."
+        return result.choices[0].message.content if result.choices else "No response received."
+    except Exception as e:
+        print("Error querying OpenAI:", str(e))
+        return "Error while querying OpenAI."
 
 
-def text_to_speech(text):
-    """
-    Convert text to speech using TextToSpeech class from tts.py.
-    """
-    tts = TextToSpeech()  # Instantiate the TTS class
-    audio_stream = tts.synthesize_speech(text)
-    if audio_stream:
-        tts.play_speech(audio_stream)
+def synthesize_and_play_speech(tscript):
+    """Synthesizes speech from text and plays it using TextToSpeech class."""
+    tts_processor = TextToSpeech()
+    stream = tts_processor.synthesize_speech(tscript)
+    if stream:
+        tts_processor.play_speech(stream)
     else:
-        print("Failed to synthesize speech")
-
-def convert_to_ssml(text):
-    """
-    Convert text to SSML.
-    """
-    return f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>{text}</speak>"
-
+        print("Error while synthesizing speech")
 
 async def main():
-    """
-    Main function to sequence operations.
-    """
-    client = await create_client()
-    recognized_text = await speech_to_text()
-
-    if recognized_text:
-        messages = [
+    """Orchestrates the text and speech interactions with OpenAI."""
+    openai_client = await create_openai_client()
+    text_transcript = await transcribe_speech_to_text()
+    if text_transcript:
+        interactions = [
             {
                 "role": "system",
-                "content": f"Please respond naturally in the same language as the user, using human-like expressions and emotions. Ensure all responses reflect understanding and empathy.",
+                "content": "You are a helpful voice assistant, respond naturally using the same language as the user, with human-like expressions and empathetic responses.",
             },
-            {"role": "user", "content": recognized_text},
+            {"role": "user", "content": text_transcript},
         ]
-        response_text = await call_openai(client, messages)
-        print("AI Response:", response_text)
-        text_to_speech(response_text)
-
+        response_text = await interact_with_openai(openai_client, interactions)
+        print("OpenAI Response:", response_text)
+        synthesize_and_play_speech(response_text)
 if __name__ == "__main__":
     asyncio.run(main())
