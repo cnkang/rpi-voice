@@ -1,11 +1,13 @@
 import os
 import asyncio
+import logging
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 from tts import TextToSpeech
 from whisper import WhisperSTT
 # Load environment variables
 load_dotenv()
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Retrieve the voice name from the .env or use default
 voice_name = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
@@ -22,11 +24,9 @@ async def transcribe_speech_to_text():
     try:
         whisper = WhisperSTT()
         loop = asyncio.get_running_loop()
-        
         # Use run_in_executor to run synchronous code in a separate thread
         audio = await loop.run_in_executor(None, whisper.record_audio_vad)
-        transcription = await loop.run_in_executor(None, whisper.transcribe_audio, audio)
-        
+        transcription = await loop.run_in_executor(None, whisper.transcribe_audio, audio)  
         return transcription
     except Exception as e:
         print("Speech-to-text conversion error:", str(e))
@@ -65,12 +65,12 @@ async def main():
         messages = [
             {
                 "role": "system",
-                "content": f"You are a helpful voice assistant. Please respond naturally in the same language as the user, using human-like expressions and emotions. Your responses should reflect understanding, empathy, and adaptability, focusing solely on the textual and emotional content without revealing your AI nature.",
+                "content": "You are a helpful voice assistant, please respond naturally in the same language as the user, using human-like expressions and emotions. Your responses should reflect understanding, empathy, and adaptability, focusing solely on the textual and emotional content without revealing your AI nature.",
             },
             {"role": "user", "content": text_transcript},
         ]
         response_text = await interact_with_openai(openai_client, messages)
-        print("OpenAI Response:", response_text)
+        logging.info("OpenAI Response: %s", response_text)
         synthesize_and_play_speech(response_text)
 
 if __name__ == "__main__":
