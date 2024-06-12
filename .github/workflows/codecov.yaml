@@ -22,7 +22,7 @@ jobs:
           python-version: "3.12"
       
       - name: Set permission for apt cache dir
-          run: |
+        run: |
             sudo chown -R $USER:$USER /var/cache/apt/archives/
 
       - name: Get current date
