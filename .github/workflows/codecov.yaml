@@ -38,13 +38,16 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-
+      - name: Log directory details before caching
+        run: |
+              ls -lha /var/lib/apt/lists
+              ls -lha /var/lib/apt/lists/partial
       - name: Cache APT packages list
         uses: actions/cache@v4
         with:
           path: |
             /var/lib/apt/lists
-            !**/partial
+            !/var/lib/apt/lists/partial/**
           key: ${{ runner.os }}-aptlist-${{ env.date }}
           restore-keys: |
             ${{ runner.os }}-aptlist-
