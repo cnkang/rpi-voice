@@ -7,3 +7,10 @@ scipy  # 用于声音处理中的科学计算
 requests  # 用于HTTP请求，用于TTS的网络调用
 webrtcvad  # 用于语音活动检测(VAD)
 setuptools
+cffi
+gevent
+greenlet
+pycparser
+six
+websocket
+websocket-client
