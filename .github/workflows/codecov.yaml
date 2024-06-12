@@ -33,13 +33,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives/
-          key: ${{ runner.os }}-apt-${{ hashFiles('**/*.list') }}
+          key: ${{ runner.os }}-apt-${{ hashFiles('**/apt/*.list') }}
           restore-keys: |
             ${{ runner.os }}-apt-
+
       - name: Install dependencies and PulseAudio
         run: |
           sudo apt-get update
           sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
+          sudo chown -R $USER:$USER /var/cache/apt/archives/
           pulseaudio --start
           pactl load-module module-null-sink sink_name=virtual_speaker
           pactl set-default-sink virtual_speaker
