@@ -3,10 +3,10 @@ name: Workflow for Codecov
 on:
   push:
     branches:
-      - main
+      - openai-api-only
   pull_request:
     branches:
-      - main
+      - openai-api-only
   workflow_dispatch:
 
 jobs:
@@ -19,8 +19,17 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
       
+      - name: Set permission for apt cache dir
+        run: |
+            sudo chown -R $USER:$USER /var/cache/apt/
+
+
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+
       - name: Cache Python packages
         uses: actions/cache@v4
         with:
@@ -29,10 +38,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives/
+          key: ${{ runner.os }}-apt-${{ env.date }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+
       - name: Install dependencies and PulseAudio
         run: |
           sudo apt-get update
-          sudo apt-get install -y pulseaudio ffmpeg
+          sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
+          sudo chown -R $USER:$USER /var/cache/apt/archives/
           pulseaudio --start
           pactl load-module module-null-sink sink_name=virtual_speaker
           pactl set-default-sink virtual_speaker
@@ -45,7 +63,7 @@ jobs:
           sudo chmod 666 /run/user/1001/pulse/native
           pulseaudio --check
           pactl info
-      
+
       - name: Configure ALSA to use PulseAudio
         run: |
           echo 'pcm.!default { type pulse }' >> ~/.asoundrc
@@ -58,7 +76,7 @@ jobs:
           pactl load-module module-null-sink
           pactl set-default-sink null
           pactl info
-          
+
       - name: Generate coverage report
         env:
           PULSE_SERVER: unix:/run/user/1001/pulse/native
