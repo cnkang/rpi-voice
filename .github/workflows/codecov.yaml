@@ -20,6 +20,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      
+      - name: Install dependencies and PulseAudio
+          run: |
+            sudo chown -R $USER:$USER /var/cache/apt/archives/
+
+      - name: Get current date
+        id: date
+        run: echo "::set-output name=date::$(date +%Y-%m-%d)"
 
       - name: Cache Python packages
         uses: actions/cache@v4
