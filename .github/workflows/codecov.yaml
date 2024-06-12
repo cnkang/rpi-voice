@@ -43,7 +43,7 @@ jobs:
           path: /var/lib/apt/lists/
           key: ${{ runner.os }}-aptlist-${{ steps.date.outputs.date }}
           restore-keys: |
-            ${{ runner.os }}-apt-
+            ${{ runner.os }}-aptlist-
       - name: Cache APT packages
         uses: actions/cache@v4
         with:
