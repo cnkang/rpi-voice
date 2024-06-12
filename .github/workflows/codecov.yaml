@@ -23,7 +23,7 @@ jobs:
       
       - name: Set permission for apt cache dir
         run: |
-            sudo chown -R $USER:$USER /var/cache/apt/archives/ /var/lib/apt/lists/
+            sudo chown -R $USER:$USER /var/cache/apt/ /var/lib/apt/
 
       - name: Get current date
         id: date
