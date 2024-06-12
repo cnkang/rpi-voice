@@ -24,10 +24,12 @@ jobs:
       - name: Set permission for apt cache dir
         run: |
             sudo chown -R $USER:$USER /var/cache/apt/ /var/lib/apt/
+      - name: Adjust permissions for APT list caching
+        run: sudo chmod -R ugo+rX /var/lib/apt/lists
 
       - name: Get current date
         id: date
-        run: echo "{date}={$(date +%Y-%m-%d)}" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_ENV
 
       - name: Cache Python packages
         uses: actions/cache@v4
@@ -42,15 +44,16 @@ jobs:
         with:
           path: |
             /var/lib/apt/lists
-            !/var/lib/apt/lists/partial
-          key: ${{ runner.os }}-aptlist-${{ steps.date.outputs.date }}
+            !**/partial
+          key: ${{ runner.os }}-aptlist-${{ env.date }}
           restore-keys: |
             ${{ runner.os }}-aptlist-
+
       - name: Cache APT packages
         uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives/
-          key: ${{ runner.os }}-apt-${{ steps.date.outputs.date }}
+          key: ${{ runner.os }}-apt-${{ env.date }}
           restore-keys: |
             ${{ runner.os }}-apt-
 
