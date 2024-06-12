@@ -3,10 +3,10 @@ name: Workflow for Codecov
 on:
   push:
     branches:
-      - main
+      - openai-api-only
   pull_request:
     branches:
-      - main
+      - openai-api-only
   workflow_dispatch:
 
 jobs:
@@ -87,6 +87,9 @@ jobs:
           AZURE_SPEECH_KEY: ${{ secrets.AZURE_SPEECH_KEY }}
           AZURE_SPEECH_REGION: ${{ secrets.AZURE_SPEECH_REGION }}
           VOICE_NAME: ${{ secrets.VOICE_NAME }}
+          WHISPER_MODEL_NAME: ${{ secrets.WHISPER_MODEL_NAME }}
+          TTS_MODEL_NAME: ${{ secrets.TTS_MODEL_NAME }}
+          TTS_VOICE_NAME: ${{ secrets.TTS_VOICE_NAME }}
         run: |
           coverage run app.py
 
