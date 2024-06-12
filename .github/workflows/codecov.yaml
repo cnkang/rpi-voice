@@ -23,7 +23,7 @@ jobs:
       
       - name: Set permission for apt cache dir
         run: |
-            sudo chown -R $USER:$USER /var/cache/apt/archives/
+            sudo chown -R $USER:$USER /var/cache/apt/archives/ /var/lib/apt/lists/
 
       - name: Get current date
         id: date
@@ -37,6 +37,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      - name: Cache APT packages list
+        uses: actions/cache@v4
+        with:
+          path: /var/lib/apt/lists/
+          key: ${{ runner.os }}-aptlist-${{ steps.date.outputs.date }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
       - name: Cache APT packages
         uses: actions/cache@v4
         with:
