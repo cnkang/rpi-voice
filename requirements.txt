@@ -2,8 +2,8 @@ openai  # 用于与OpenAI API交互
 python-dotenv  # 用于管理环境变量
 pydub  # 用于处理音频文件
 sounddevice  # 用于录制音频
-numpy  # 用于处理音频数据
+numpy > 1.22.2 # 用于处理音频数据
 scipy  # 用于声音处理中的科学计算
 requests > 2.32.2 # 用于HTTP请求，用于TTS的网络调用
 webrtcvad  # 用于语音活动检测(VAD)
-setuptools
+setuptools > 65.5.1
