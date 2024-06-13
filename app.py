@@ -1,3 +1,4 @@
+import httpx
 import os
 import asyncio
 import logging
@@ -23,7 +24,8 @@ async def create_openai_client():
     return AsyncAzureOpenAI(
         api_key=AZURE_OPENAI_API_KEY,
         api_version=AZURE_API_VERSION,
-        azure_endpoint=AZURE_OPENAI_ENDPOINT
+        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        http_client=httpx.AsyncClient(http2=True),
     )
 
 async def transcribe_speech_to_text():
@@ -49,12 +51,14 @@ async def interact_with_openai(client, prompts):
             temperature=0.7,
             top_p=1,
             frequency_penalty=0,
-            presence_penalty=0,
+            presence_penalty=0
         )
-        return response.choices[0].message.content if response.choices else "No response returned."
+        result = response.choices[0].message.content if response.choices else "No response returned."
+        return result  # ensure the 'result' is what gets returned and further processed
     except Exception as e:
         logging.error("Error interacting with OpenAI: %s", str(e))
         return "Error in the AI response"
+
 
 def synthesize_and_play_speech(tscript):
     """Synthesizes speech from text and plays it using TextToSpeech class."""

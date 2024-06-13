@@ -7,3 +7,5 @@ scipy  # Library for scientific calculations, used in audio processing
 requests > 2.32.2 # Library for making HTTP requests, used for network calls in TTS (Text-to-Speech)
 webrtcvad  # Library for Voice Activity Detection (VAD)
 setuptools > 65.5.1  # Library for packaging Python projects
+httpx[http2]
+asyncio
