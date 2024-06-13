@@ -1,6 +1,7 @@
 # Azure OpenAI and Speech SDK Integration
 
-[![Snyk](https://snyk.io/test/github/cnkang/rpi-voice/badge.svg)](https://snyk.io/test/github/cnkang/rpi-voice)
+[![Snyk](https://snyk.io/test/github/cnkang/rpi-voice/badge.svg)](https://snyk.io/test/github/cnkang/rpi-voice)![BuildTest](https://img.shields.io/github/actions/workflow/status/cnkang/rpi-voice/codecov.yaml)![codecov](https://img.shields.io/codecov/c/github/cnkang/rpi-voice)[![CodeFactor](https://www.codefactor.io/repository/github/cnkang/rpi-voice/badge)](https://www.codefactor.io/repository/github/cnkang/rpi-voice)
+
 
 This project demonstrates the integration of Azure's Cognitive Services, specifically OpenAI and the Speech SDK, to create a custom voice assistant. The assistant utilizes speech-to-text and text-to-speech capabilities for conversational user interaction.
 
