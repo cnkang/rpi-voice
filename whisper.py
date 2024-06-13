@@ -2,7 +2,7 @@ import numpy as np
 import sounddevice as sd
 from scipy.io.wavfile import write
 import tempfile
-import random
+import uuid
 import os
 import logging
 import webrtcvad
@@ -26,9 +26,9 @@ class WhisperSTT:
         self.sample_rate = 16000  # Sample rate for audio recording, suitable for voice
 
     def array_to_bytes(self, audio_array):
-        # Generate a random filename for the temporary audio file
-        random_digits = str(random.randint(10000000, 99999999))
-        tmp_audio_file_path = os.path.join(tempfile.gettempdir(), f"temp_audio_{random_digits}.wav")
+        # Generate a unique filename for the temporary audio file using UUID
+        unique_filename = uuid.uuid4()
+        tmp_audio_file_path = os.path.join(tempfile.gettempdir(), f"temp_audio_{unique_filename}.wav")
         # Write the numpy array to a WAV file
         write(tmp_audio_file_path, self.sample_rate, audio_array.astype(np.int16))
         return tmp_audio_file_path
@@ -87,6 +87,7 @@ class WhisperSTT:
 
     def cleanup_temp_file(self, file_path):
         os.unlink(file_path)  # Remove the file from the filesystem
+
 if __name__ == '__main__':
     whisper_stt = WhisperSTT()
     recorded_audio = whisper_stt.record_audio_vad()
