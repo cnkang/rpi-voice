@@ -27,5 +27,3 @@ asyncio>=3.4.3 # Included in Python's standard library; listed here for complete
 # Error handling and logging support in async environments
 aiologger>=0.6.0 # Optional: For more advanced asynchronous logging capabilities
 
-# For HTTP error handling in asynchronous calls
-httpx-errors>=1.0 # Hypothetical package for better error management with httpx

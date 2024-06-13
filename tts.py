@@ -6,6 +6,7 @@ from io import BytesIO
 from pydub import AudioSegment
 from pydub.playback import play
 import asyncio
+import time
 
 # Configuration and setup
 load_dotenv()
@@ -19,35 +20,50 @@ class TextToSpeech:
         self.api_version = "2024-02-15-preview"
         self.tts_model = os.getenv("TTS_MODEL_NAME", "tts-1-hd")
         self.headers = {"api-key": self.api_key, "Content-Type": "application/json"}
+        self.timeout = httpx.Timeout(10.0, connect=60.0)
+        self.max_retries = 3   # Define the maximum number of retries
+        self.retry_delay = 5   # Delay between retries in seconds
 
     def construct_request_url(self):
-        # Build the URL for the Azure API request
         url = f"{self.endpoint}/openai/deployments/{self.tts_model}/audio/speech?api-version={self.api_version}"
         return url
 
     async def synthesize_speech(self, text):
-        # Create payload for POST request
         data = {"model": self.tts_model, "input": text, "voice": self.voice_name}
-
-        # Perform POST request to Azure API
-        try:
-            async with httpx.AsyncClient(http2=True) as client:
-                response = await client.post(self.construct_request_url(), headers=self.headers, json=data)
-                response.raise_for_status()  # Raises an HTTPError for bad requests
-                logging.info("Speech synthesis request successful.")
-                return BytesIO(response.content)  # Returns the audio content as a bytes object
-        except httpx.RequestError as e:
-            logging.error(f"Request failed: {e}", exc_info=True)
-            return None
+        retries = 0
+        while retries < self.max_retries:
+            try:
+                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+                    response = await client.post(self.construct_request_url(), headers=self.headers, json=data)
+                    response.raise_for_status()
+                    logging.info("Speech synthesis request successful.")
+                    return BytesIO(response.content)
+            except httpx.ReadTimeout as e:
+                retries += 1
+                logging.warning(f"Read timeout occurred, retry {retries}/{self.max_retries}")
+                time.sleep(self.retry_delay)
+            except httpx.HTTPStatusError as e:
+                logging.error(f"HTTP Status Error occurred: {e}", exc_info=True)
+                break
+            except httpx.RequestError as e:
+                logging.error(f"HTTP Request Error: {e}", exc_info=True)
+                break
+            except Exception as e:
+                logging.error(f"An unexpected error occurred: {e}", exc_info=True)
+                break
+        logging.error("Failed to synthesize speech after retries.")
+        return None
 
     def play_speech(self, audio_stream):
-        # Play the audio stream
-        if audio_stream:
-            sound = AudioSegment.from_file(audio_stream, format="mp3")
-            logging.info("Playback started.")
-            play(sound)
-        else:
-            logging.error("Failed to play speech: No audio stream.")
+        try:
+            if audio_stream:
+                sound = AudioSegment.from_file(audio_stream, format="mp3")
+                logging.info("Playback started.")
+                play(sound)
+            else:
+                logging.error("Failed to play speech: No audio stream.")
+        except Exception as e:
+            logging.error(f"Error while playing audio: {e}", exc_info=True)
 
 # Usage
 async def main():
