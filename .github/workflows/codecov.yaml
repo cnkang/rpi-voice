@@ -3,10 +3,10 @@ name: Workflow for Codecov
 on:
   push:
     branches:
-      - openai-api-only
+      - main
   pull_request:
     branches:
-      - openai-api-only
+      - main
   workflow_dispatch:
 
 jobs:
