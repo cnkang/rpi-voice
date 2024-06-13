@@ -1,9 +1,9 @@
-openai  # 用于与OpenAI API交互
-python-dotenv  # 用于管理环境变量
-pydub  # 用于处理音频文件
-sounddevice  # 用于录制音频
-numpy > 1.22.2 # 用于处理音频数据
-scipy  # 用于声音处理中的科学计算
-requests > 2.32.2 # 用于HTTP请求，用于TTS的网络调用
-webrtcvad  # 用于语音活动检测(VAD)
-setuptools > 65.5.1
+openai  # Library for interacting with the OpenAI API
+python-dotenv  # Library for managing environment variables
+pydub  # Library for handling audio files
+sounddevice  # Library for recording audio
+numpy > 1.22.2 # Library for numerical operations, used here for processing audio data
+scipy  # Library for scientific calculations, used in audio processing
+requests > 2.32.2 # Library for making HTTP requests, used for network calls in TTS (Text-to-Speech)
+webrtcvad  # Library for Voice Activity Detection (VAD)
+setuptools > 65.5.1  # Library for packaging Python projects
