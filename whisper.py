@@ -1,3 +1,5 @@
+import httpx
+import asyncio
 import numpy as np
 import sounddevice as sd
 from scipy.io.wavfile import write
@@ -7,7 +9,7 @@ import os
 import logging
 import webrtcvad
 from dotenv import load_dotenv
-from openai import AzureOpenAI
+from openai import AsyncAzureOpenAI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -18,10 +20,11 @@ class WhisperSTT:
         load_dotenv()
         
         # Initialize Azure OpenAI client with the necessary credentials
-        self.client = AzureOpenAI(
+        self.client = AsyncAzureOpenAI(
             azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
             api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_API_VERSION")
+            api_version=os.getenv("AZURE_API_VERSION"),
+            http_client=httpx.AsyncClient(http2=True),
         )
         self.sample_rate = 16000  # Sample rate for audio recording, suitable for voice
 
@@ -65,18 +68,18 @@ class WhisperSTT:
         logging.info("Recording finished.")
         return np.concatenate(recorded_frames)
 
-    def transcribe_audio(self, audio_array):
+    async def transcribe_audio(self, audio_array):
         # Convert the audio array to bytes and save as a temporary file
         temp_file_path = self.array_to_bytes(audio_array)
         try:
             with open(temp_file_path, "rb") as audio_file:
                 try:
-                    # Make a request to transcribe the audio file
-                    transcript = self.client.audio.transcriptions.create(
+                    # Make the async request to transcribe the audio file and await it
+                    transcript = await self.client.audio.transcriptions.create(
                         model=os.getenv("WHISPER_MODEL_NAME"),
                         file=audio_file
                     )
-                    logging.info("Transcript text: %s",transcript.text)
+                    logging.info("Transcript text: %s", transcript.text)
                     return transcript.text
                 except Exception as e:
                     logging.error("Error transcribing audio: %s", e)
@@ -85,11 +88,16 @@ class WhisperSTT:
             # Cleanup the temporary file used for storing the audio
             self.cleanup_temp_file(temp_file_path)
 
+
     def cleanup_temp_file(self, file_path):
         os.unlink(file_path)  # Remove the file from the filesystem
 
 if __name__ == '__main__':
-    whisper_stt = WhisperSTT()
-    recorded_audio = whisper_stt.record_audio_vad()
-    transcript = whisper_stt.transcribe_audio(recorded_audio)
-    logging.info("Transcription result: %s", transcript)
+    async def main():
+        whisper_stt = WhisperSTT()
+        recorded_audio = whisper_stt.record_audio_vad()
+        transcript = await whisper_stt.transcribe_audio(recorded_audio)  # Use await with async method
+        logging.info("Transcription result: %s", transcript)
+    
+    # Setup asyncio event loop to run the main function
+    asyncio.run(main())
