@@ -1,10 +1,11 @@
 import os
-import requests
+import httpx
 import logging
 from dotenv import load_dotenv
 from io import BytesIO
 from pydub import AudioSegment
 from pydub.playback import play
+import asyncio
 
 # Configuration and setup
 load_dotenv()
@@ -24,19 +25,21 @@ class TextToSpeech:
         url = f"{self.endpoint}/openai/deployments/{self.tts_model}/audio/speech?api-version={self.api_version}"
         return url
 
-    def synthesize_speech(self, text):
+    async def synthesize_speech(self, text):
         # Create payload for POST request
         data = {"model": self.tts_model, "input": text, "voice": self.voice_name}
 
         # Perform POST request to Azure API
         try:
-            response = requests.post(self.construct_request_url(), headers=self.headers, json=data)
-            response.raise_for_status()  # Raises an HTTPError for bad requests
-            logging.info("Speech synthesis request successful.")
-            return BytesIO(response.content)  # Returns the audio content as a bytes object
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Request failed: {e}", exc_info=e)
+            async with httpx.AsyncClient(http2=True) as client:
+                response = await client.post(self.construct_request_url(), headers=self.headers, json=data)
+                response.raise_for_status()  # Raises an HTTPError for bad requests
+                logging.info("Speech synthesis request successful.")
+                return BytesIO(response.content)  # Returns the audio content as a bytes object
+        except httpx.RequestError as e:
+            logging.error(f"Request failed: {e}", exc_info=True)
             return None
+
     def play_speech(self, audio_stream):
         # Play the audio stream
         if audio_stream:
@@ -47,9 +50,12 @@ class TextToSpeech:
             logging.error("Failed to play speech: No audio stream.")
 
 # Usage
-if __name__ == "__main__":
+async def main():
     tts = TextToSpeech()
     text_to_synthesize = "Today is a wonderful day to build something people love!"
-    audio_stream = tts.synthesize_speech(text_to_synthesize)
+    audio_stream = await tts.synthesize_speech(text_to_synthesize)
     if audio_stream:
         tts.play_speech(audio_stream)
+
+if __name__ == "__main__":
+    asyncio.run(main())
