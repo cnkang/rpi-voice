@@ -20,3 +20,6 @@ asyncio>=3.4.3 # Minimum version 3.4.3 of asyncio to support coroutine-based asy
 aiologger>=0.6.0 # Optional advanced asynchronous logging with aiologger from version 0.6.0
 
 aiofiles>=23.2.1 # Asynchronous file I/O operations require at least version 23.2.1 of aiofiles
+
+pytest>=6.0.0
+pytest-asyncio>=0.15.0
