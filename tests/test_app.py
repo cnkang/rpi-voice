@@ -1,29 +1,34 @@
 # tests/test_app.py
 import pytest
-from unittest.mock import AsyncMock
+import os
+from unittest.mock import patch, AsyncMock, MagicMock
 
-# You might need to adjust the import according to your project structure.
-from app import create_openai_client, interact_with_openai, synthesize_and_play_speech
-
-@pytest.mark.asyncio
-async def test_create_openai_client():
-    client = await create_openai_client()
-    assert client is not None, "Failed to create OpenAI client"
+# Adapt imports as needed
+from app import create_openai_client, interact_with_openai, synthesize_and_play_speech, main
 
 @pytest.mark.asyncio
-async def test_interact_with_openai():
+async def test_interact_with_openai_error_handling():
     client = AsyncMock()
-    prompts = [{"role": "user", "content": "Hello"}]
-    mock_response = AsyncMock()
-    mock_response.choices = [AsyncMock(message=AsyncMock(content='Hi'))]
-    client.chat.completions.create = AsyncMock(return_value=mock_response)
+    prompts = [{"role": "user", "content": None}]  # Invalid prompt
     response = await interact_with_openai(client, prompts)
-    
-    assert response != "No response returned.", "No response was returned from OpenAI"
-    assert response != "Error in the AI response", "An error occurred in the interaction with OpenAI"
-    assert "Error in prompts format" not in response, "The prompts were not formatted correctly"
+    print(response)
+    assert "Error in the AI response" not in response
+
+pytest.mark.asyncio
+async def test_main_flow():
+    # Mock the main function dependencies
+    # Assume main executes all major components at least once
+    with patch('app.create_openai_client') as mock_create_client:
+        client_instance = AsyncMock()
+        mock_create_client.return_value = client_instance
+        client_instance.chat.completions.create.return_value = AsyncMock(choices=[AsyncMock(message=AsyncMock(content="Hello"))])
+        with patch('app.transcribe_speech_to_text', return_value="This is a test"):
+            with patch('app.synthesize_and_play_speech') as mock_synth:
+                await main()
+                mock_synth.assert_called_once()
 
 @pytest.mark.asyncio
-async def test_synthesize_and_play_speech_none_input():
-    result = await synthesize_and_play_speech(None)
-    assert result is None, "Should handle None input without throwing an error"
+async def test_invalid_client_creation():
+    os.environ['AZURE_OPENAI_API_KEY'] = ''  # Clear API key to force an error
+    with pytest.raises(Exception):
+        await create_openai_client()

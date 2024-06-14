@@ -50,7 +50,7 @@ async def interact_with_openai(client, prompts):
             return "Error in prompts format"
         response = await client.chat.completions.create(
             model=MODEL_NAME,
-            messages=prompts,
+            messages="",#prompts,
             max_tokens=4096,
             temperature=0.7,
             top_p=1,

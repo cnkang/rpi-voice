@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from unittest.mock import patch, AsyncMock, MagicMock
 
 from whisper import WhisperSTT
 
@@ -28,3 +29,12 @@ async def test_transcribe_audio():
     except Exception as e:
         # If an exception occurs, the test should fail
         pytest.fail(f"transcribe_audio method failed with exception: {e}")
+
+# 在声音到文本的测试中添加网络错误或API错误的测试用例
+@pytest.mark.asyncio
+async def test_transcription_service_failure():
+    whisper_stt = WhisperSTT()
+    audio = np.array([1, 2, 3], dtype=np.int16)
+    whisper_stt.client.audio.transcriptions.create = AsyncMock(side_effect=Exception("Service failure"))
+    result = await whisper_stt.transcribe_audio(audio)
+    assert result == "Failed to transcribe audio", "Should handle service failures gracefully"
