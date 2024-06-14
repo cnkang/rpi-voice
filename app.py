@@ -32,14 +32,14 @@ async def transcribe_speech_to_text():
     """Converts speech to text using WhisperSTT and handles errors."""
     whisper = WhisperSTT()
     try:
-        # Using direct asyncio future with ThreadPoolExecutor for better management
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            audio = await asyncio.get_running_loop().run_in_executor(pool, whisper.record_audio_vad)
-            transcription = await asyncio.get_running_loop().run_in_executor(pool, whisper.transcribe_audio, audio)
+        # Make sure to await both the recording and transcription processes
+        audio = await asyncio.get_running_loop().run_in_executor(None, whisper.record_audio_vad)
+        transcription = await whisper.transcribe_audio(audio)
         return transcription
     except Exception as e:
         logging.error("Speech-to-text conversion error: %s", str(e))
         return ""
+
 
 async def interact_with_openai(client, prompts):
     """Send messages to OpenAI and get the response."""
@@ -48,8 +48,6 @@ async def interact_with_openai(client, prompts):
         if not isinstance(prompts, list) or not all(isinstance(p, dict) for p in prompts):
             logging.error("Prompts are not in the correct format")
             return "Error in prompts format"
-        print(prompts)
-        exit()
         response = await client.chat.completions.create(
             model=MODEL_NAME,
             messages=prompts,
@@ -88,7 +86,7 @@ async def main():
     Ensure all asynchronous tasks are managed with 'await'.
     """
     openai_client = await create_openai_client()
-    text_transcript = await transcribe_speech_to_text()  # Ensure transcription is awaited
+    text_transcript = await transcribe_speech_to_text()  # Directly await the result
     if text_transcript:
         messages = [
             {
@@ -105,6 +103,7 @@ async def main():
         response_text = await interact_with_openai(openai_client, messages)  # Ensure interaction is awaited
         logging.info("OpenAI Response: %s", response_text)
         await synthesize_and_play_speech(response_text)  # Properly await this asynchronous call
+
 
 if __name__ == "__main__":
     # Run the asynchronous main routine

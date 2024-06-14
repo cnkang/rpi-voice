@@ -74,12 +74,12 @@ class WhisperSTT:
         try:
             with open(temp_file_path, "rb") as audio_file:
                 try:
-                    # Make the async request to transcribe the audio file and await it
+                    # Make a request to transcribe the audio file
                     transcript = await self.client.audio.transcriptions.create(
                         model=os.getenv("WHISPER_MODEL_NAME"),
                         file=audio_file
                     )
-                    logging.info("Transcript text: %s", transcript.text)
+                    logging.info("Transcript text: %s",transcript.text)
                     return transcript.text
                 except Exception as e:
                     logging.error("Error transcribing audio: %s", e)
@@ -88,16 +88,20 @@ class WhisperSTT:
             # Cleanup the temporary file used for storing the audio
             self.cleanup_temp_file(temp_file_path)
 
-
     def cleanup_temp_file(self, file_path):
         os.unlink(file_path)  # Remove the file from the filesystem
 
+# Define the asynchronous main function
+async def main():
+    # Create an instance of the WhisperSTT class
+    whisper_stt = WhisperSTT()
+    # Record audio using the record_audio_vad function
+    recorded_audio = whisper_stt.record_audio_vad()
+    # Transcribe recorded audio using the transcribe_audio function
+    transcript = await whisper_stt.transcribe_audio(recorded_audio)
+    # Logging the transcription result
+    logging.info("Transcription result: %s", transcript)
+
 if __name__ == '__main__':
-    async def main():
-        whisper_stt = WhisperSTT()
-        recorded_audio = whisper_stt.record_audio_vad()
-        transcript = await whisper_stt.transcribe_audio(recorded_audio)  # Use await with async method
-        logging.info("Transcription result: %s", transcript)
-    
-    # Setup asyncio event loop to run the main function
+    # Run the main function using asyncio.run()
     asyncio.run(main())

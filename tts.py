@@ -54,7 +54,7 @@ class TextToSpeech:
         logging.error("Failed to synthesize speech after retries.")
         return None
 
-    def play_speech(self, audio_stream):
+    async def play_speech(self, audio_stream):
         try:
             if audio_stream:
                 sound = AudioSegment.from_file(audio_stream, format="mp3")
@@ -70,8 +70,13 @@ async def main():
     tts = TextToSpeech()
     text_to_synthesize = "Today is a wonderful day to build something people love!"
     audio_stream = await tts.synthesize_speech(text_to_synthesize)
+    
+    # Properly handle None result
     if audio_stream:
         tts.play_speech(audio_stream)
+    else:
+        logging.error("No audio stream was returned from synthesize_speech.")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
