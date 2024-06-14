@@ -1,4 +1,4 @@
-name: Build
+name: SonarCloud-test
 on:
   push:
     branches:
@@ -17,6 +17,65 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+
+      - name: Set permission for apt cache dir
+        run: |
+              sudo chown -R $USER:$USER /var/cache/apt/
+  
+  
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_ENV
+  
+      - name: Cache Python packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+  
+      - name: Cache APT packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives/
+          key: ${{ runner.os }}-apt-${{ env.date }}
+          restore-keys: |
+            ${{ runner.os }}-apt-
+  
+      - name: Install dependencies and PulseAudio
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
+          sudo chown -R $USER:$USER /var/cache/apt/archives/
+          pulseaudio --start
+          pactl load-module module-null-sink sink_name=virtual_speaker
+          pactl set-default-sink virtual_speaker
+          pip install -r requirements.txt
+          pip install coverage
+  
+      - name: Modify user permissions and check audio
+        run: |
+          sudo usermod -aG audio $USER
+          sudo chmod 666 /run/user/1001/pulse/native
+          pulseaudio --check
+          pactl info
+  
+      - name: Configure ALSA to use PulseAudio
+        run: |
+          echo 'pcm.!default { type pulse }' >> ~/.asoundrc
+          echo 'ctl.!default { type pulse }' >> ~/.asoundrc
+  
+      - name: Test simplified PulseAudio setup
+        run: |
+          pulseaudio --kill
+          pulseaudio --start --log-target=syslog
+          pactl load-module module-null-sink
+          pactl set-default-sink null
+          pactl info
+      
+      - name: Install tox and any other packages
+        run: pip install tox
       - name: Install tox and any other packages
         run: pip install tox
       - name: Run tox
