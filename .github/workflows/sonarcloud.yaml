@@ -89,7 +89,7 @@ jobs:
           WHISPER_MODEL_NAME: ${{ secrets.WHISPER_MODEL_NAME }}
           TTS_MODEL_NAME: ${{ secrets.TTS_MODEL_NAME }}
           TTS_VOICE_NAME: ${{ secrets.TTS_VOICE_NAME }}
-        run: tox -e py
+        run: tox -e py312
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
