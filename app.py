@@ -44,6 +44,12 @@ async def transcribe_speech_to_text():
 async def interact_with_openai(client, prompts):
     """Send messages to OpenAI and get the response."""
     try:
+        # Make sure prompts are serializable; typically, they should be.
+        if not isinstance(prompts, list) or not all(isinstance(p, dict) for p in prompts):
+            logging.error("Prompts are not in the correct format")
+            return "Error in prompts format"
+        print(prompts)
+        exit()
         response = await client.chat.completions.create(
             model=MODEL_NAME,
             messages=prompts,
@@ -54,41 +60,52 @@ async def interact_with_openai(client, prompts):
             presence_penalty=0
         )
         result = response.choices[0].message.content if response.choices else "No response returned."
-        return result  # ensure the 'result' is what gets returned and further processed
+        return result
     except Exception as e:
         logging.error("Error interacting with OpenAI: %s", str(e))
         return "Error in the AI response"
 
 
-def synthesize_and_play_speech(tscript):
-    """Synthesizes speech from text and plays it using TextToSpeech class."""
+async def synthesize_and_play_speech(tscript):
     tts_processor = TextToSpeech()
     try:
-        stream = tts_processor.synthesize_speech(tscript)
+        if tscript is None:
+            logging.error("Text script is None, cannot synthesize speech")
+            return
+
+        stream = await tts_processor.synthesize_speech(tscript)
         if stream:
-            tts_processor.play_speech(stream)
+            await tts_processor.play_speech(stream)
         else:
-            logging.error("Failed to synthesize speech")
+            logging.error("Failed to synthesize speech or get valid audio stream")
     except Exception as e:
         logging.error("Error while synthesizing speech: %s", str(e))
 
+
 async def main():
-    """Orchestrate text and speech interactions with OpenAI."""
+    """
+    Orchestrate text and speech interactions with OpenAI.
+    Ensure all asynchronous tasks are managed with 'await'.
+    """
     openai_client = await create_openai_client()
-    text_transcript = await transcribe_speech_to_text()
+    text_transcript = await transcribe_speech_to_text()  # Ensure transcription is awaited
     if text_transcript:
         messages = [
             {
                 "role": "system",
-                "content": ("You are a helpful voice assistant, please respond naturally in the same language as the user, using"
-                            " human-like expressions and emotions. Your responses should reflect understanding, empathy, and adaptability,"
-                            " focusing solely on the textual and emotional content without revealing your AI nature."),
+                "content": ("You are a helpful assistant. Please respond naturally in the language "
+                            "used by the user, utilizing human-like expressions and emotions. "
+                            "Show understanding, empathy, and adaptability. Avoid disclosing your AI identity.")
             },
-            {"role": "user", "content": text_transcript},
+            {
+                "role": "user",
+                "content": text_transcript
+            },
         ]
-        response_text = await interact_with_openai(openai_client, messages)
+        response_text = await interact_with_openai(openai_client, messages)  # Ensure interaction is awaited
         logging.info("OpenAI Response: %s", response_text)
-        synthesize_and_play_speech(response_text)
+        await synthesize_and_play_speech(response_text)  # Properly await this asynchronous call
 
 if __name__ == "__main__":
+    # Run the asynchronous main routine
     asyncio.run(main())

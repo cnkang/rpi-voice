@@ -1,29 +1,22 @@
 # Core libraries for API interactions
-openai>=0.16.0 # Updated to reflect minimum versions if compatibility issues arise
-
+openai>=1.0.0 # Ensure we are using at least version 1.0.0 of OpenAI's API client for better compatibility
 # Environment configuration management
-python-dotenv>=0.20.0
-
+python-dotenv>=0.20.0 # Load environment variables from .env file using minimum version 0.20.0 to ensure all features are available
 # Audio handling and playback
-pydub>=0.25.1
-sounddevice>=0.4.4
-
+pydub>=0.25.1 # Manipulate audio with a minimum of pydub version 0.25.1
+sounddevice>=0.4.4 # Play and record sound in real-time using sounddevice version 0.4.4 or higher
 # Numerical operations and scientific computing
-numpy>=1.22.2
-scipy>=1.7.1
-
+numpy>=1.22.2 # Use at least version 1.22.2 of NumPy for efficient numerical computations
+scipy>=1.7.1 # Require a minimum of SciPy version 1.7.1 for advanced math, science, and engineering capabilities
 # Voice Activity Detection
-webrtcvad>=2.0.10
-
+webrtcvad>=2.0.10 # Voice activity detection using WebRTC's VAD module starting from version 2.0.10
 # Python project packaging tools
-setuptools>=65.5.1
-
+setuptools>=65.5.1 # Ensure the use of setuptools version 65.5.1 or higher for packaging Python projects
 # Asynchronous HTTP client with HTTP/2 support
-httpx[http2]>=0.23.0
-
+httpx[http2]>=0.23.0 # Use HTTPX with HTTP2 support at minimum version 0.23.0 for async HTTP requests
 # Coroutine-based asynchronous I/O
-asyncio>=3.4.3 # Included in Python's standard library; listed here for completeness
-
+asyncio>=3.4.3 # Minimum version 3.4.3 of asyncio to support coroutine-based asynchronous I/O, included in Python's standard library
 # Error handling and logging support in async environments
-aiologger>=0.6.0 # Optional: For more advanced asynchronous logging capabilities
+aiologger>=0.6.0 # Optional advanced asynchronous logging with aiologger from version 0.6.0
 
+aiofiles>=23.2.1 # Asynchronous file I/O operations require at least version 23.2.1 of aiofiles
