@@ -42,9 +42,9 @@ async def create_openai_client():
         http_client=httpx.AsyncClient(http2=True),
     )
 
-async def transcribe_speech_to_text():
+async def transcribe_speech_to_text(whisper_instance=None):
     """Converts speech to text using WhisperSTT and handles errors."""
-    whisper = WhisperSTT()
+    whisper = whisper_instance or WhisperSTT()
     try:
         # Make sure to await both the recording and transcription processes
         audio = await asyncio.get_running_loop().run_in_executor(None, whisper.record_audio_vad)
