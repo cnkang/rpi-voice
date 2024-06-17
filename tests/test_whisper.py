@@ -4,6 +4,7 @@ from unittest.mock import patch, AsyncMock, MagicMock
 from pytest import raises
 
 from whisper import WhisperSTT
+from whisper import main as whisper_main
 
 @pytest.fixture
 def whisper_stt():
@@ -163,3 +164,35 @@ async def test_openai_endpoint_missing():
         mock_getenv.side_effect = lambda key, default=None: None if key == "AZURE_OPENAI_ENDPOINT" else "dummy_key"
         with raises(AssertionError, match="Environment variable 'AZURE_OPENAI_ENDPOINT' cannot be empty"):
             WhisperSTT()
+
+@pytest.mark.asyncio
+async def test_whisper_main_integration():
+    """
+    Tests the main function from the whisper module to ensure that it can run without throwing an exception
+    when properly configured.
+
+    This test function will run the main function inside the whisper module, watching for any exceptions,
+    including AssertionError or any other unexpected errors that may indicate a problem in the main execution flow
+    or integration issues.
+    """
+    # Mock relevant functions to avoid external dependencies while testing
+    with patch('whisper.WhisperSTT.record_audio_vad') as mock_record_audio, \
+         patch('whisper.WhisperSTT.transcribe_audio', new_callable=AsyncMock) as mock_transcribe_audio:
+        
+        # Setting up mocked return values
+        mock_record_audio.return_value = np.zeros((1600,), dtype=np.int16)  # Pretend there's 1 second of silent input
+        mock_transcribe_audio.return_value = 'Simulated transcription'  # Set up a simulated speech-to-text result
+
+        try:
+            # Execute the main function assumed to be whisper_main()
+            await whisper_main()
+            # Verify if record_audio_vad function is called
+            assert mock_record_audio.called, "The record_audio_vad function should have been called."
+            # Verify if transcribe_audio function is called
+            assert mock_transcribe_audio.called, "The transcribe_audio function should have been called."
+        except AssertionError as e:
+            # Fail the test if AssertionError, which indicated expected conditions failed
+            pytest.fail(f"Unexpected AssertionError thrown: {e}")
+        except Exception as e:
+            # Fail the test if any unexpected exception is thrown, indicating unknown issues
+            pytest.fail(f"Unexpected exception thrown: {e}")
