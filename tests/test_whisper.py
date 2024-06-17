@@ -51,7 +51,6 @@ async def test_record_audio_vad(whisper_stt):
     """
     simulated_silence = np.zeros((1600,), dtype=np.int16)  # Represents one second of silence, assuming 1600 samples = 1 second.
     simulated_audio = [simulated_silence]  # Wrapping the silent data as a list, as expected input.
-
     result = whisper_stt.record_audio_vad(simulation_input=simulated_audio)
     assert isinstance(result, np.ndarray), "Result should be a numpy array"
     assert result.shape[0] == 1600, "The shape of the result array should match the input audio duration."
