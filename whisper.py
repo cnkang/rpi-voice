@@ -19,11 +19,20 @@ class WhisperSTT:
         # Load environment variables
         load_dotenv()
 
+        # Get necessary environment variables
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+        api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        api_version = os.getenv("AZURE_API_VERSION", "2024-05-01-preview")
+
+        # Assert to ensure that the critical environment variables are not None (or empty)
+        assert azure_endpoint, "Environment variable 'AZURE_OPENAI_ENDPOINT' cannot be empty"
+        assert api_key, "Environment variable 'AZURE_OPENAI_API_KEY' cannot be empty"
+
         # Initialize Azure OpenAI client with the necessary credentials
         self.client = AsyncAzureOpenAI(
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_API_VERSION"),
+            azure_endpoint=azure_endpoint,
+            api_key=api_key,
+            api_version=api_version,
             http_client=httpx.AsyncClient(http2=True),
         )
         self.sample_rate = 16000  # Sample rate for audio recording, suitable for voice
