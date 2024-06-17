@@ -60,9 +60,23 @@ async def interact_with_openai(client, prompts):
     try:
         # Ensure prompts are serializable; typically, they should be.
         if not isinstance(prompts, list) or not all(isinstance(p, dict) for p in prompts):
-            error_message = "Prompts are not in the correct format"
+            error_message = "Prompts are not in the correct format: Should be a list of dictionaries."
             logging.error(error_message)
             raise AssertionError(error_message)
+
+        # 检查每个prompt的结构是否合规
+        required_keys = {'role', 'content'}
+        valid_roles = {'system', 'user'}
+        for prompt in prompts:
+            if not required_keys <= prompt.keys():
+                error_message = "Each prompt should contain 'role' and 'content'."
+                logging.error(error_message)
+                raise AssertionError(error_message)
+            if prompt['role'] not in valid_roles:
+                error_message = f"Role must be either 'system' or 'user', but got '{prompt['role']}'."
+                logging.error(error_message)
+                raise AssertionError(error_message)
+
             
         response = await client.chat.completions.create(
             model=MODEL_NAME,

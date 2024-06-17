@@ -55,6 +55,51 @@ async def test_transcribe_speech_error_handling(caplog):
     found = any("Mock Exception" in record.message for record in caplog.records)
     assert found, "Expected 'Mock Exception' but wasn't found in logged output."
 
+@pytest.mark.asyncio
+async def test_create_openai_client_missing_env_vars():
+    with patch.dict(os.environ, {'AZURE_OPENAI_API_KEY': 'dummy-key', 'AZURE_API_VERSION': '', 'AZURE_OPENAI_ENDPOINT': 'dummy-endpoint'}, clear=True):
+        with pytest.raises(ValueError) as e1:
+            await create_openai_client()
+        assert "AZURE_API_VERSION is required but missing" in str(e1.value)
+
+    with patch.dict(os.environ, {'AZURE_OPENAI_API_KEY': 'dummy-key', 'AZURE_API_VERSION': 'dummy-version', 'AZURE_OPENAI_ENDPOINT': ''}, clear=True):
+        with pytest.raises(ValueError) as e2:
+            await create_openai_client()
+        assert "AZURE_OPENAI_ENDPOINT is required but missing" in str(e2.value)
+
+@pytest.mark.asyncio
+async def test_interact_with_openai_invalid_prompt_structure():
+    client = AsyncMock()
+    # Test with missing 'role' and 'content' keys which are required for correct formatting
+    bad_prompts = [{"incorrect": "format"}]
+    with pytest.raises(AssertionError) as exc_info:
+        await interact_with_openai(client, bad_prompts)
+    # Verify that an error is raised for prompts with incorrect structure
+    assert "Each prompt should contain 'role' and 'content'" in str(exc_info.value)
+
+    # Test with incorrect 'role' value which should be either 'system' or 'user'
+    bad_prompts2 = [{"role": "invalid_role", "content": "Hello"}]
+    with pytest.raises(AssertionError) as exc_info:
+        await interact_with_openai(client, bad_prompts2)
+    # Verify that an error is raised for incorrect role values
+    assert "Role must be either 'system' or 'user'" in str(exc_info.value)
+
+    # Test with correct prompt structure to make sure no errors are raised
+    good_prompts = [{"role": "user", "content": "Hello"}, {"role": "system", "content": "You are a helpful AI"}]
+    response = await interact_with_openai(client, good_prompts)
+    # Verify that the function returns a response when input is correctly formatted
+    assert response, "Function should return a response with valid input"
+
+
+# Also test valid inputs to make sure they work correctly.
+@pytest.mark.asyncio
+async def test_interact_with_openai_valid_input():
+    client = AsyncMock()
+    client.chat.completions.create.return_value = AsyncMock(choices=[AsyncMock(message=AsyncMock(content="Valid response"))])
+    valid_prompts = [{"role": "user", "content": "Hello, how are you?"}]
+    
+    response = await interact_with_openai(client, valid_prompts)
+    assert response == "Valid response"
 
 
 
