@@ -11,12 +11,14 @@ from whisper import WhisperSTT
 def initialize_env(load_env=True):
     if load_env:
         load_dotenv()
+# Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Retrieve the voice and other configurations from the .env file
 VOICE_NAME = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
 MODEL_NAME = os.getenv("MODEL_NAME")
 
+# Function to create an async OpenAI client
 async def create_openai_client():
     """Creates an async client for OpenAI using pre-loaded environment variables.
        Raises:
@@ -26,6 +28,7 @@ async def create_openai_client():
     api_key = os.getenv("AZURE_OPENAI_API_KEY")
     api_version = os.getenv("AZURE_API_VERSION")
     azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    
     # Check if essential environment variables are missing
     if not api_key:
         raise ValueError("AZURE_OPENAI_API_KEY is required but missing.")
@@ -42,6 +45,7 @@ async def create_openai_client():
         http_client=httpx.AsyncClient(http2=True),
     )
 
+# Function to transcribe speech to text using WhisperSTT
 async def transcribe_speech_to_text(whisper_instance=None):
     """Converts speech to text using WhisperSTT and handles errors."""
     whisper = whisper_instance or WhisperSTT()
@@ -54,7 +58,7 @@ async def transcribe_speech_to_text(whisper_instance=None):
         logging.error("Speech-to-text conversion error: %s", str(e))
         return ""
 
-
+# Function to interact with OpenAI
 async def interact_with_openai(client, prompts):
     """Send messages to OpenAI and get the response, raise AssertionError on input errors."""
     try:
@@ -77,7 +81,7 @@ async def interact_with_openai(client, prompts):
                 logging.error(error_message)
                 raise AssertionError(error_message)
 
-            
+        # Send the prompts to OpenAI and await the response
         response = await client.chat.completions.create(
             model=MODEL_NAME,
             messages=prompts,
@@ -93,8 +97,7 @@ async def interact_with_openai(client, prompts):
         logging.error("Error interacting with OpenAI: %s", str(e))
         raise AssertionError(f"Error in the AI response: {str(e)}")
 
-
-
+# Function to synthesize and play speech
 async def synthesize_and_play_speech(tscript):
     tts_processor = TextToSpeech()
     try:
@@ -102,6 +105,7 @@ async def synthesize_and_play_speech(tscript):
             logging.error("Text script is None, cannot synthesize speech")
             return
 
+        # Synthesize speech and play it
         stream = await tts_processor.synthesize_speech(tscript)
         if stream:
             await tts_processor.play_speech(stream)
@@ -139,4 +143,3 @@ if __name__ == "__main__":
     # Run the asynchronous main routine
     initialize_env()
     asyncio.run(main())
-

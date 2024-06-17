@@ -1,4 +1,5 @@
 # tests/test_app.py
+
 import pytest
 import os
 from unittest.mock import patch, AsyncMock, MagicMock, call
@@ -8,6 +9,10 @@ from app import create_openai_client, interact_with_openai, synthesize_and_play_
 
 @pytest.mark.asyncio
 async def test_interact_with_openai_error_handling():
+    """
+    Test that `interact_with_openai` raises an AssertionError
+    when provided with prompts that are not in the correct format.
+    """
     client = AsyncMock()
     prompts = ["incorrect format string"]
     
@@ -18,27 +23,35 @@ async def test_interact_with_openai_error_handling():
 
 @pytest.mark.asyncio
 async def test_main_flow():
-    # Mock the main function dependencies
-    # Assume main executes all major components at least once
+    """
+    Test the main flow of the application by mocking dependencies.
+    Ensure that each major component is called at least once.
+    """
     with patch('app.create_openai_client') as mock_create_client, \
          patch('app.transcribe_speech_to_text', AsyncMock(return_value="This is a test")) as mock_transcribe, \
          patch('app.synthesize_and_play_speech') as mock_synth:
+        
         client_instance = AsyncMock()
         mock_create_client.return_value = client_instance
         client_instance.chat.completions.create.return_value = AsyncMock(choices=[AsyncMock(message=AsyncMock(content="Hello"))])
 
         await main()
+        
+        # Verify that each mocked function is called once
         mock_create_client.assert_called_once()
         mock_transcribe.assert_called_once()
         mock_synth.assert_called_once_with("Hello")
-        # Additionally, you might want to validate the ordering
+        # Additional validation of call ordering
         assert mock_create_client.called
         assert mock_transcribe.called
         assert mock_synth.called
 
 @pytest.mark.asyncio
 async def test_invalid_client_creation():
-    # Set up the environment for testing missing API key
+    """
+    Test that `create_openai_client` raises a ValueError when the 
+    AZURE_OPENAI_API_KEY environment variable is missing.
+    """
     with patch.dict(os.environ, {'AZURE_OPENAI_API_KEY': '', 'AZURE_API_VERSION': 'dummy-version', 'AZURE_OPENAI_ENDPOINT': 'dummy-endpoint'}):
         with pytest.raises(ValueError) as exc_info:
             await create_openai_client()
@@ -46,17 +59,26 @@ async def test_invalid_client_creation():
 
 @pytest.mark.asyncio
 async def test_transcribe_speech_error_handling(caplog):
+    """
+    Test that `transcribe_speech_to_text` logs an exception 
+    when an error occurs during transcription.
+    """
     mock_whisper = MagicMock()
     mock_whisper.transcribe_audio.side_effect = Exception("Mock Exception")
 
     with patch('app.WhisperSTT', return_value=mock_whisper):
         await transcribe_speech_to_text()
 
+    # Verify that the exception message is logged
     found = any("Mock Exception" in record.message for record in caplog.records)
     assert found, "Expected 'Mock Exception' but wasn't found in logged output."
 
 @pytest.mark.asyncio
 async def test_create_openai_client_missing_env_vars():
+    """
+    Test that `create_openai_client` raises a ValueError when any
+    required environment variable is missing.
+    """
     with patch.dict(os.environ, {'AZURE_OPENAI_API_KEY': 'dummy-key', 'AZURE_API_VERSION': '', 'AZURE_OPENAI_ENDPOINT': 'dummy-endpoint'}, clear=True):
         with pytest.raises(ValueError) as e1:
             await create_openai_client()
@@ -69,6 +91,10 @@ async def test_create_openai_client_missing_env_vars():
 
 @pytest.mark.asyncio
 async def test_interact_with_openai_invalid_prompt_structure():
+    """
+    Test that `interact_with_openai` raises an AssertionError for 
+    prompts with incorrect structures or invalid role values.
+    """
     client = AsyncMock()
     # Test with missing 'role' and 'content' keys which are required for correct formatting
     bad_prompts = [{"incorrect": "format"}]
