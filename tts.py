@@ -16,7 +16,7 @@ class TextToSpeech:
         self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
         self.voice_name = os.getenv("TTS_VOICE_NAME", "alloy")
         self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.api_version = "2024-02-15-preview"
+        self.api_version = os.getenv("AZURE_API_VERSION","2024-02-15-preview")
         self.tts_model = os.getenv("TTS_MODEL_NAME", "tts-1-hd")
         self.headers = {"api-key": self.api_key, "Content-Type": "application/json"}
         self.timeout = httpx.Timeout(10.0, connect=60.0)
