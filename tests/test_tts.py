@@ -4,14 +4,14 @@ import pytest
 from httpx import Response, Request
 from unittest.mock import patch
 import pytest
-from tts import TextToSpeech
+import tts as tts_module
 
 async def test_synthesize_speech():
     """
     Tests that synthesizing speech from a valid string in normal conditions works properly,
     ensuring the system raises an AssertionError with an appropriate message if it fails.
     """
-    tts = TextToSpeech()
+    tts = tts_module.TextToSpeech()
     with pytest.raises(AssertionError, match=r"Failed to synthesize speech"):
         with patch('tts.TextToSpeech._make_request', side_effect=Exception("Simulated failure")):
             await tts.synthesize_speech("Test speech synthesis.")
@@ -21,7 +21,7 @@ async def test_synthesize_speech_empty_string():
     Tests to ensure producing speech from an empty string raises an AssertionError.
     Verifies that invalid inputs are handled correctly.
     """
-    tts = TextToSpeech()
+    tts = tts_module.TextToSpeech()
     with pytest.raises(AssertionError, match=r"Failed to synthesize speech: Empty input provided"):
         await tts.synthesize_speech("")
 
@@ -30,7 +30,7 @@ async def test_synthesize_speech_http_error():
     Tests exception handling during an HTTP error. This confirms that the TextToSpeech class
     can handle exceptions in the HTTP POST request gracefully by raising a custom AssertionError.
     """
-    tts = TextToSpeech()
+    tts = tts_module.TextToSpeech()
     with patch('tts.TextToSpeech._make_request', side_effect=httpx.HTTPStatusError(
         message="Error", request=Request(method="POST", url="dummy"), response=Response(status_code=500))):
         with pytest.raises(AssertionError, match=r"Failed after maximum retries."):
@@ -42,7 +42,7 @@ async def test_synthesize_speech_retry_logic():
     simulating two failures followed by a success. Tests that retry logic will succeed
     after the maximum number of retry attempts.
     """
-    tts = TextToSpeech()
+    tts = tts_module.TextToSpeech()
 
     # Modify retry properties to shorten test execution time
     tts.max_retries = 3
@@ -61,3 +61,17 @@ async def test_synthesize_speech_retry_logic():
         assert mock_post.call_count == 3  # Verify that request was retried the correct number of times
         assert audio_stream is not None  # Confirm that audio stream is returned after successful retries
 
+async def test_main_function_normal_behavior():
+    """
+    Test the main function from the tts module to ensure that it can run without throwing an exception
+    when provided with valid data.
+    """
+    with patch('tts.TextToSpeech.synthesize_speech', return_value=b"some audio data") as mock_synthesize:
+        try:
+            # 调用tts模块中的main函数
+            await tts_module.main()
+            assert mock_synthesize.called, "The synthesize_speech function should have been called."
+        except AssertionError as e:
+            pytest.fail(f"Unexpected AssertionError thrown: {e}")
+        except Exception as e:
+            pytest.fail(f"Unexpected exception thrown: {e}")
