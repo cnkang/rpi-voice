@@ -2,29 +2,43 @@ import httpx
 import os
 import asyncio
 import logging
-import concurrent.futures  # Import the concurrent.futures module
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 from tts import TextToSpeech
 from whisper import WhisperSTT
 
 # Load environment variables
-load_dotenv()
+def initialize_env(load_env=True):
+    if load_env:
+        load_dotenv()
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Retrieve the voice and other configurations from the .env file
 VOICE_NAME = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-AZURE_API_VERSION = os.getenv("AZURE_API_VERSION")
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
 MODEL_NAME = os.getenv("MODEL_NAME")
 
 async def create_openai_client():
-    """Creates an async client for OpenAI using pre-loaded environment variables."""
+    """Creates an async client for OpenAI using pre-loaded environment variables.
+       Raises:
+           ValueError: If any required configuration is missing.
+    """
+    # Dynamically load environment variables
+    api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    api_version = os.getenv("AZURE_API_VERSION")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    # Check if essential environment variables are missing
+    if not api_key:
+        raise ValueError("AZURE_OPENAI_API_KEY is required but missing.")
+    if not api_version:
+        raise ValueError("AZURE_API_VERSION is required but missing.")
+    if not azure_endpoint:
+        raise ValueError("AZURE_OPENAI_ENDPOINT is required but missing.")
+
+    # Since all conditions are checked, it's safe to proceed
     return AsyncAzureOpenAI(
-        api_key=AZURE_OPENAI_API_KEY,
-        api_version=AZURE_API_VERSION,
-        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=api_key,
+        api_version=api_version,
+        azure_endpoint=azure_endpoint,
         http_client=httpx.AsyncClient(http2=True),
     )
 
@@ -104,7 +118,8 @@ async def main():
         logging.info("OpenAI Response: %s", response_text)
         await synthesize_and_play_speech(response_text)  # Properly await this asynchronous call
 
-
 if __name__ == "__main__":
     # Run the asynchronous main routine
+    initialize_env()
     asyncio.run(main())
+
