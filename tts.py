@@ -6,7 +6,6 @@ from io import BytesIO
 from pydub import AudioSegment
 from pydub.playback import play
 import asyncio
-import time
 
 # Configuration and setup
 load_dotenv()
@@ -41,7 +40,7 @@ class TextToSpeech:
             except httpx.ReadTimeout as e:
                 retries += 1
                 logging.warning(f"Read timeout occurred, retry {retries}/{self.max_retries}")
-                time.sleep(self.retry_delay)
+                asyncio.sleep(self.retry_delay)
             except (httpx.HTTPStatusError, httpx.RequestError, Exception) as e:
                 error_msg = f"Failed to synthesize speech: {e}"
                 logging.error(error_msg, exc_info=True)
