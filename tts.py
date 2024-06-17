@@ -27,28 +27,36 @@ class TextToSpeech:
         url = f"{self.endpoint}/openai/deployments/{self.tts_model}/audio/speech?api-version={self.api_version}"
         return url
 
+    async def _make_request(self, data):
+        async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
+            response = await client.post(self.construct_request_url(), headers=self.headers, json=data)
+            response.raise_for_status()
+            return response
+
     async def synthesize_speech(self, text):
         data = {"model": self.tts_model, "input": text, "voice": self.voice_name}
         retries = 0
-        while retries < self.max_retries:
+        max_retries = 3
+        retry_delay = 5
+
+        while retries < max_retries:
             try:
-                async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
-                    response = await client.post(self.construct_request_url(), headers=self.headers, json=data)
-                    response.raise_for_status()
-                    logging.info("Speech synthesis request successful.")
-                    return BytesIO(response.content)
+                response = await self._make_request(data)
+                logging.info("Speech synthesis request successful.")
+                return BytesIO(response.content)
             except httpx.ReadTimeout as e:
                 retries += 1
-                logging.warning(f"Read timeout occurred, retry {retries}/{self.max_retries}")
-                asyncio.sleep(self.retry_delay)
+                logging.warning(f"Read timeout occurred, retry {retries}/{max_retries}")
+                await asyncio.sleep(retry_delay)
             except (httpx.HTTPStatusError, httpx.RequestError, Exception) as e:
                 error_msg = f"Failed to synthesize speech: {e}"
                 logging.error(error_msg, exc_info=True)
-                assert False, error_msg
+                if retries >= max_retries - 1:
+                    raise AssertionError(error_msg)
+                retries += 1
+                await asyncio.sleep(retry_delay)
 
-        error_msg = "Failed to synthesize speech after maximum retries."
-        logging.error(error_msg)
-        assert False, error_msg
+        raise AssertionError("Failed to synthesize speech after maximum retries.")
 
 
     async def play_speech(self, audio_stream):
@@ -70,7 +78,7 @@ async def main():
     
     # Properly handle None result
     if audio_stream:
-        tts.play_speech(audio_stream)
+        await tts.play_speech(audio_stream)
     else:
         logging.error("No audio stream was returned from synthesize_speech.")
 
