@@ -46,12 +46,15 @@ async def test_invalid_client_creation():
 
 @pytest.mark.asyncio
 async def test_transcribe_speech_error_handling(caplog):
-    with patch('app.WhisperSTT.transcribe_audio', side_effect=Exception("Mock Exception")):
+    mock_whisper = MagicMock()
+    mock_whisper.transcribe_audio.side_effect = Exception("Mock Exception")
+
+    with patch('app.WhisperSTT', return_value=mock_whisper):
         await transcribe_speech_to_text()
 
-    # Check that the "Mock Exception" appears in any of the log messages
     found = any("Mock Exception" in record.message for record in caplog.records)
     assert found, "Expected 'Mock Exception' but wasn't found in logged output."
+
 
 
 
