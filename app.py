@@ -56,15 +56,17 @@ async def transcribe_speech_to_text():
 
 
 async def interact_with_openai(client, prompts):
-    """Send messages to OpenAI and get the response."""
+    """Send messages to OpenAI and get the response, raise AssertionError on input errors."""
     try:
-        # Make sure prompts are serializable; typically, they should be.
+        # Ensure prompts are serializable; typically, they should be.
         if not isinstance(prompts, list) or not all(isinstance(p, dict) for p in prompts):
-            logging.error("Prompts are not in the correct format")
-            return "Error in prompts format"
+            error_message = "Prompts are not in the correct format"
+            logging.error(error_message)
+            raise AssertionError(error_message)
+            
         response = await client.chat.completions.create(
             model=MODEL_NAME,
-            messages="",#prompts,
+            messages=prompts,
             max_tokens=4096,
             temperature=0.7,
             top_p=1,
@@ -75,7 +77,8 @@ async def interact_with_openai(client, prompts):
         return result
     except Exception as e:
         logging.error("Error interacting with OpenAI: %s", str(e))
-        return "Error in the AI response"
+        raise AssertionError(f"Error in the AI response: {str(e)}")
+
 
 
 async def synthesize_and_play_speech(tscript):
