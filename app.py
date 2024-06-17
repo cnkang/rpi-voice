@@ -2,7 +2,6 @@ import httpx
 import os
 import asyncio
 import logging
-import concurrent.futures  # Import the concurrent.futures module
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 from tts import TextToSpeech
@@ -37,9 +36,9 @@ async def create_openai_client():
 
     # Since all conditions are checked, it's safe to proceed
     return AsyncAzureOpenAI(
-        api_key,
-        api_version,
-        azure_endpoint,
+        api_key=api_key,
+        api_version=api_version,
+        azure_endpoint=azure_endpoint,
         http_client=httpx.AsyncClient(http2=True),
     )
 
@@ -123,3 +122,4 @@ if __name__ == "__main__":
     # Run the asynchronous main routine
     initialize_env()
     asyncio.run(main())
+
