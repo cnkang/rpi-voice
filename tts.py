@@ -42,17 +42,15 @@ class TextToSpeech:
                 retries += 1
                 logging.warning(f"Read timeout occurred, retry {retries}/{self.max_retries}")
                 time.sleep(self.retry_delay)
-            except httpx.HTTPStatusError as e:
-                logging.error(f"HTTP Status Error occurred: {e}", exc_info=True)
-                break
-            except httpx.RequestError as e:
-                logging.error(f"HTTP Request Error: {e}", exc_info=True)
-                break
-            except Exception as e:
-                logging.error(f"An unexpected error occurred: {e}", exc_info=True)
-                break
-        logging.error("Failed to synthesize speech after retries.")
-        return None
+            except (httpx.HTTPStatusError, httpx.RequestError, Exception) as e:
+                error_msg = f"Failed to synthesize speech: {e}"
+                logging.error(error_msg, exc_info=True)
+                assert False, error_msg
+
+        error_msg = "Failed to synthesize speech after maximum retries."
+        logging.error(error_msg)
+        assert False, error_msg
+
 
     async def play_speech(self, audio_stream):
         try:
