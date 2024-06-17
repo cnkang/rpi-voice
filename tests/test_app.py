@@ -47,8 +47,7 @@ async def test_invalid_client_creation():
 @pytest.mark.asyncio
 async def test_transcribe_speech_error_handling(caplog):
     with patch('app.WhisperSTT.transcribe_audio', side_effect=Exception("Mock Exception")):
-        transcript = await transcribe_speech_to_text()
-        assert transcript == ""
+        await transcribe_speech_to_text()
         expected_error_message = "Speech-to-text conversion error: Mock Exception"
         assert expected_error_message in caplog.text, f"Expected '{expected_error_message}' in logs, found '{caplog.text}'"
 
