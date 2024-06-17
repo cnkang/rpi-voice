@@ -29,6 +29,13 @@ async def test_main_flow():
 
 @pytest.mark.asyncio
 async def test_invalid_client_creation():
-    os.environ['AZURE_OPENAI_API_KEY'] = ''  # Clear API key to force an error
-    with pytest.raises(Exception):
+    # Set up the environment for testing missing API key
+    os.environ['AZURE_OPENAI_API_KEY'] = ''
+    # The other variables can be set to dummy values
+    os.environ['AZURE_API_VERSION'] = 'dummy-version'
+    os.environ['AZURE_OPENAI_ENDPOINT'] = 'dummy-endpoint'
+
+    with pytest.raises(ValueError) as exc_info:
         await create_openai_client()
+
+    assert "AZURE_OPENAI_API_KEY is required but missing" in str(exc_info.value), "Should raise ValueError for missing API key"
