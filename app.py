@@ -26,20 +26,20 @@ async def create_openai_client():
     # Dynamically load environment variables
     api_key = os.getenv("AZURE_OPENAI_API_KEY")
     api_version = os.getenv("AZURE_API_VERSION")
-    endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
     # Check if essential environment variables are missing
     if not api_key:
         raise ValueError("AZURE_OPENAI_API_KEY is required but missing.")
     if not api_version:
         raise ValueError("AZURE_API_VERSION is required but missing.")
-    if not endpoint:
+    if not azure_endpoint:
         raise ValueError("AZURE_OPENAI_ENDPOINT is required but missing.")
 
     # Since all conditions are checked, it's safe to proceed
     return AsyncAzureOpenAI(
-        api_key=AZURE_OPENAI_API_KEY,
-        api_version=AZURE_API_VERSION,
-        azure_endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key,
+        api_version,
+        azure_endpoint,
         http_client=httpx.AsyncClient(http2=True),
     )
 
