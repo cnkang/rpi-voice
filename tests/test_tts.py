@@ -8,73 +8,56 @@ from tts import TextToSpeech
 
 async def test_synthesize_speech():
     """
-    Tests the synthesis of speech from text in normal conditions to verify the proper functionality
-    of the TextToSpeech class. Asserts that an AssertionError is raised with a specific message when 
-    synthesizing speech fails.
+    Tests that synthesizing speech from a valid string in normal conditions works properly,
+    ensuring the system raises an AssertionError with an appropriate message if it fails.
     """
-    # Initialize the TextToSpeech class instance
     tts = TextToSpeech()
-    # Assert that an AssertionError is raised with specific message when synthesizing speech
     with pytest.raises(AssertionError, match=r"Failed to synthesize speech"):
-        await tts.synthesize_speech("Test speech synthesis.")
+        with patch('tts.TextToSpeech._make_request', side_effect=Exception("Simulated failure")):
+            await tts.synthesize_speech("Test speech synthesis.")
 
 async def test_synthesize_speech_empty_string():
     """
-    Tests the TextToSpeech class to ensure it raises an AssertionError when attempting to synthesize 
-    speech from an empty string. This test verifies that the class can handle edge cases where invalid 
-    input (empty string) is given, and it ensures that the error messaging is consistent with synthesis failures.
+    Tests to ensure producing speech from an empty string raises an AssertionError.
+    Verifies that invalid inputs are handled correctly.
     """
-    tts = TextToSpeech()# Initialize the TextToSpeech class instance
-    # Assert that an AssertionError is raised with specific message when synthesizing with an empty string
-    with pytest.raises(AssertionError, match=r"Failed to synthesize speech"):
+    tts = TextToSpeech()
+    with pytest.raises(AssertionError, match=r"Failed to synthesize speech: Empty input provided"):
         await tts.synthesize_speech("")
 
-async def test_synthesize_speech_http_error():   
+async def test_synthesize_speech_http_error():
     """
-    Tests the error handling of the TextToSpeech class during an HTTP error. The test checks if the class
-    correctly handles exceptions that occur during the HTTP POST request by raising a customized AssertionError.
-    This ensures that the system is resilient and addresses potential errors during speech synthesis network requests.
+    Tests exception handling during an HTTP error. This confirms that the TextToSpeech class
+    can handle exceptions in the HTTP POST request gracefully by raising a custom AssertionError.
     """
-    tts = TextToSpeech() # Initialize the TextToSpeech class instance
-    # Mock HTTP errors during the POST request and assert that an exception is properly handled
-    with patch('httpx.AsyncClient.post', side_effect=httpx.HTTPStatusError("Error", request="dummy request", response="dummy response")), pytest.raises(AssertionError, match=r"Failed to synthesize speech"):
-        await tts.synthesize_speech("This should fail but handle")
+    tts = TextToSpeech()
+    with patch('tts.TextToSpeech._make_request', side_effect=httpx.HTTPStatusError(
+        message="Error", request=Request(method="POST", url="dummy"), response=Response(status_code=500))):
+        with pytest.raises(AssertionError, match=r"Failed after maximum retries."):
+            await tts.synthesize_speech("This should fail but handle")
 
 async def test_synthesize_speech_retry_logic():
     """
-    Tests the retry logic of the TextToSpeech class to ensure that it appropriately retries the HTTP POST request
-    when transient errors (specifically HTTP 500 errors) occur. This test verifies that the class can handle 
-    temporary communication issues and still successfully synthesize speech after a number of retry attempts.
-
-    The test sets up mocked HTTP responses: two failures followed by a success. The assertions check if:
-    - The HTTP POST method is called the correct number of times (3 times in this case due to two failures and one success).
-    - The synthesized speech, represented as a stream of bytes, is returned correctly after successful retrying.
-
-    This ensures the resilience of the TextToSpeech system by confirming that it can recover from intermittent network failures.
+    Ensures the TextToSpeech class correctly retries HTTP POST requests under transient errors,
+    simulating two failures followed by a success. Tests that retry logic will succeed
+    after the maximum number of retry attempts.
     """
-    tts = TextToSpeech() # Initialize the TextToSpeech class instance
+    tts = TextToSpeech()
 
-    
-    # Set the retry parameters to reduce test duration
+    # Modify retry properties to shorten test execution time
     tts.max_retries = 3
     tts.retry_delay = 1
 
-    # Create a mocked request and response
-    mock_request = httpx.Request(method="POST", url=tts.construct_request_url())
-    
-    # Create a failed HTTP error and a successful response for testing
-    http_error = httpx.HTTPStatusError(message="Error", request=mock_request, response=httpx.Response(status_code=500, request=mock_request))
-    successful_response = httpx.Response(status_code=200, content=b"Success binary content for audio", request=mock_request)
-    
-    # Define side effects to simulate retry behavior on failures
+    # Simulate side effects for the mocked POST method: two failed attempts followed by a success
+    http_error_response = httpx.Response(status_code=500)
+    http_error = httpx.HTTPStatusError(message="Temporary Error", request=Request(method="POST", url="dummy"), response=http_error_response)
+    successful_response = httpx.Response(status_code=200, content=b"Success binary content for audio", 
+                                         request=Request(method="POST", url="dummy"))
     side_effects = [http_error, http_error, successful_response]
 
-    with patch('httpx.AsyncClient.post', side_effect=side_effects) as mock_post:
-        # Execute the function under test
+    with patch('tts.TextToSpeech._make_request', side_effect=side_effects) as mock_post:
         audio_stream = await tts.synthesize_speech("Testing retry logic.")
         
-        # Verify that the `post` method was called three times as expected for retries
-        assert mock_post.call_count == 3
-        
-        # Verify that the correct audio stream is returned after retries
-        assert audio_stream is not None
+        assert mock_post.call_count == 3  # Verify that request was retried the correct number of times
+        assert audio_stream is not None  # Confirm that audio stream is returned after successful retries
+

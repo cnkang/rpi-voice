@@ -34,6 +34,9 @@ class TextToSpeech:
             return response
 
     async def synthesize_speech(self, text):
+        if not text:
+            raise AssertionError("Failed to synthesize speech: Empty input provided")
+
         data = {"model": self.tts_model, "input": text, "voice": self.voice_name}
         retries = 0
         max_retries = 3
@@ -48,16 +51,16 @@ class TextToSpeech:
                 retries += 1
                 logging.warning(f"Read timeout occurred, retry {retries}/{max_retries}")
                 await asyncio.sleep(retry_delay)
-            except (httpx.HTTPStatusError, httpx.RequestError, Exception) as e:
+            except (httpx.HTTPStatusError, httpx.RequestError) as e:
+                retries += 1
+                logging.error(f"Network or request error occurred: {e}")
+                if retries >= max_retries:
+                    raise AssertionError("Failed after maximum retries.")
+                await asyncio.sleep(retry_delay)
+            except Exception as e:
                 error_msg = f"Failed to synthesize speech: {e}"
                 logging.error(error_msg, exc_info=True)
-                if retries >= max_retries - 1:
-                    raise AssertionError(error_msg)
-                retries += 1
-                await asyncio.sleep(retry_delay)
-
-        raise AssertionError("Failed to synthesize speech after maximum retries.")
-
+                raise AssertionError(error_msg)
 
     async def play_speech(self, audio_stream):
         try:
