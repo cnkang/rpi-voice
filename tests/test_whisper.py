@@ -269,3 +269,48 @@ async def test_long_silence_handling(whisper_stt):
         # 验证结果长度是否正确（期待因为持续静音而提前停止）
         expected_length = len(mock_audio_data) * 160  # 因为设置的max_silence_duration较短，所以实际应停止录制
         assert len(result) < expected_length, f"Recording should have stopped early due to silence, expected < {expected_length}, got {len(result)}"
+@pytest.mark.asyncio
+async def test_maximum_duration_limit(whisper_stt):
+    """
+    测试录音时达到最大时长是否会停止。
+    """
+    # 生成一长串的静音数据，比最大录音时长还长
+    long_silence_data = [np.zeros((160,), dtype=np.int16) for _ in range(700)]  # more than maximum duration
+    result = await whisper_stt.record_audio_vad(simulation_input=long_silence_data, max_duration=5)
+    expected_max_length = 5 * whisper_stt.sample_rate  # max_duration in samples
+    assert len(result) <= expected_max_length, "Recording should stop after reaching max duration"
+
+@pytest.mark.asyncio
+async def test_record_audio_vad_speech_detection(whisper_stt):
+    """
+    测试录音过程中对于语音和静音的正确处理。
+    """
+    # 交替静音与非静音帧
+    silence_frame = np.zeros((160,), dtype=np.int16)
+    noise_frame = np.ones((160,), dtype=np.int16)
+    simulation_input = [noise_frame if i % 2 == 0 else silence_frame for i in range(20)]
+    
+    # 模拟 vad.is_speech 对于静音和非静音帧返回不同值
+    with patch('whisper.webrtcvad.Vad') as mock_vad:
+        mock_vad_instance = mock_vad.return_value
+        mock_vad_instance.is_speech.side_effect = lambda data, rate: np.any(data != 0)
+        
+        result = await whisper_stt.record_audio_vad(simulation_input=simulation_input)
+        assert len(result) > 0, "Should correctly process and record audio based on vad.is_speech result"
+        
+@pytest.mark.asyncio
+async def test_cleanup_failure_logged(whisper_stt):
+    """
+    测试无法删除临时文件时，异常如何被处理和记录。
+    """
+    with patch('whisper.os.unlink') as mock_unlink:
+        # 模拟删除文件时出现了 OSError。
+        mock_unlink.side_effect = OSError("Failed to delete file")
+
+        with patch('logging.error') as mock_log:
+            # 假设临时文件路径为 'temp_audio_file.wav'。
+            whisper_stt.cleanup_temp_file('temp_audio_file.wav')
+            # 根据实际调用中记录的错误消息进行断言。
+            mock_log.assert_called_once_with(
+                "Failed to delete temp file temp_audio_file.wav: Failed to delete file"
+            )
