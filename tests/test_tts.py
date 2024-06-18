@@ -4,8 +4,10 @@ import pytest
 from httpx import Response, Request
 from unittest.mock import patch
 import pytest
+import os
 import tts as tts_module
 
+@pytest.mark.asyncio
 async def test_synthesize_speech():
     """
     Tests that synthesizing speech from a valid string in normal conditions works properly,
@@ -16,6 +18,7 @@ async def test_synthesize_speech():
         with patch('tts.TextToSpeech._make_request', side_effect=Exception("Simulated failure")):
             await tts.synthesize_speech("Test speech synthesis.")
 
+@pytest.mark.asyncio
 async def test_synthesize_speech_empty_string():
     """
     Tests to ensure producing speech from an empty string raises an AssertionError.
@@ -25,6 +28,7 @@ async def test_synthesize_speech_empty_string():
     with pytest.raises(AssertionError, match=r"Failed to synthesize speech: Empty input provided"):
         await tts.synthesize_speech("")
 
+@pytest.mark.asyncio
 async def test_synthesize_speech_http_error():
     """
     Tests exception handling during an HTTP error. This confirms that the TextToSpeech class
@@ -35,7 +39,7 @@ async def test_synthesize_speech_http_error():
         message="Error", request=Request(method="POST", url="dummy"), response=Response(status_code=500))):
         with pytest.raises(AssertionError, match=r"Failed after maximum retries."):
             await tts.synthesize_speech("This should fail but handle")
-
+@pytest.mark.asyncio
 async def test_synthesize_speech_retry_logic():
     """
     Ensures the TextToSpeech class correctly retries HTTP POST requests under transient errors,
@@ -61,6 +65,7 @@ async def test_synthesize_speech_retry_logic():
         assert mock_post.call_count == 3  # Verify that request was retried the correct number of times
         assert audio_stream is not None  # Confirm that audio stream is returned after successful retries
 
+@pytest.mark.asyncio
 async def test_main_function_normal_behavior():
     """
     Test the main function from the tts module to ensure that it can run without throwing an exception
@@ -75,3 +80,16 @@ async def test_main_function_normal_behavior():
             pytest.fail(f"Unexpected AssertionError thrown: {e}")
         except Exception as e:
             pytest.fail(f"Unexpected exception thrown: {e}")
+
+@pytest.mark.asyncio
+async def test_missing_api_key():
+    with patch.dict(os.environ, {'AZURE_OPENAI_API_KEY': ''}):
+        with pytest.raises(ValueError, match=r"Necessary configuration missing"):
+            tts_module.TextToSpeech()
+
+@pytest.mark.asyncio
+async def test_retry_logic_on_temporary_failures():
+    with patch('httpx.AsyncClient.post', side_effect=httpx.ReadTimeout("timeout")):
+        tts = tts_module.TextToSpeech()
+        with pytest.raises(AssertionError):
+            await tts.synthesize_speech("Hello")
