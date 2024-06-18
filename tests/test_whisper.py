@@ -1,8 +1,5 @@
 import numpy as np
 import pytest
-import asyncio
-import logging
-import sounddevice
 
 from unittest.mock import patch, AsyncMock, MagicMock
 from pytest import raises
@@ -248,69 +245,133 @@ async def test_transcribe_audio_without_env():
 
 @pytest.mark.asyncio
 async def test_transcribe_audio_exception(whisper_stt):
+    """
+    Test the graceful handling of exceptions during the transcription process.
+
+    This test simulates a scenario where an IOError occurs while trying to open a file during the
+    transcription process. The function is expected to catch the exception and handle it gracefully,
+    returning a specific error message ("Failed to transcribe audio"). The effectiveness of the
+    exception handling within the `transcribe_audio` method of the `WhisperSTT` class is the primary
+    focus of this test.
+
+    Args:
+        whisper_stt (WhisperSTT): An instance of WhisperSTT, prepared and configured for testing.
+
+    Side Effects:
+        Patches `builtins.open` to simulate an opening file issue, raising an IOError.
+
+    Assumptions:
+        The `transcribe_audio` method in the `WhisperSTT` class has proper exception handling for
+        IOError during file operations.
+
+    Asserts:
+        Asserts that the result of the transcription process is equal to "Failed to transcribe audio"
+        when an IOError is simulated, indicating that the error was handled as expected.
+    """
+    # Create a mock piece of audio data as an example
     audio_data = np.array([0, 1, 2], dtype=np.int16)
+
+    # Patch the `open` built-in function in the context of this test to simulate file opening issues
     with patch('builtins.open', new_callable=MagicMock) as mock_open:
+        # Simulate an IOError when attempting to write to a file
         mock_open.return_value.__enter__.return_value.write.side_effect = IOError("Failed to open file")
 
+        # Perform the transcription process, which is expected to handle the simulated IOException gracefully
         result = await whisper_stt.transcribe_audio(audio_data)
         assert result == "Failed to transcribe audio"
 
 @pytest.mark.asyncio
 async def test_long_silence_handling(whisper_stt):
-    # 长时间静音音频数据，确保其符合分块处理的需求
-    mock_audio_data = [np.zeros((160,), dtype=np.int16) for _ in range(3000)] 
-    with patch('whisper.webrtcvad.Vad') as mock_vad:
-        mock_vad_instance = mock_vad.return_value
-        mock_vad_instance.is_speech.return_value = False  # 总是假设没有语音
+    """
+    Test the handling of prolonged silence in the audio recording process.
 
-        # 运行实际测试的音频录制功能
+    This test simulates a scenario where sustained silence occurs, and checks if the `record_audio_vad` function stops
+    recording early due to reaching the maximum silence duration allowed. It uses a mock for a voice activity detector
+    (VAD) to consistently detect no speech in the audio, simulating a prolonged silence scenario.
+
+    The test feeds a long array of silent audio frames to the `record_audio_vad` method and examines if the recording
+    stops prematurely due to the absence of detected speech, based on configured maximum silence parameters.
+
+    Args:
+        whisper_stt (WhisperSTT): An instance of WhisperSTT with configured VAD settings for testing.
+
+    Side Effects:
+        - Utilizes the `webrtcvad.Vad` class, simulating it always detecting no speech in the audio.
+        - Feeds a predefined extensive silent audio data for simulating non-speech conditions.
+
+    Asserts:
+        Asserts that the recorded audio length is less than expected if normal continuous recording was done,
+        validating that the system correctly identifies and stops recording after prolonged silence.
+    """
+    # Prepare long silence audio data which should fulfill batch processing requirements
+    mock_audio_data = [np.zeros((160,), dtype=np.int16) for _ in range(3000)]  
+
+    with patch('whisper.webrtcvad.Vad') as mock_vad:
+        # Setup mock for Voice Activity Detector (VAD) which will always assume there is no speech
+        mock_vad_instance = mock_vad.return_value
+        mock_vad_instance.is_speech.return_value = False  
+
+        # Execute the actual test on the audio recording function with specified conditions
         result = await whisper_stt.record_audio_vad(max_duration=10, max_silence_duration=1, simulation_input=mock_audio_data)
 
-        # 验证结果长度是否正确（期待因为持续静音而提前停止）
-        expected_length = len(mock_audio_data) * 160  # 因为设置的max_silence_duration较短，所以实际应停止录制
+        # Verify the result length is as expected (should have stopped early due to sustained silence)
+        expected_length = len(mock_audio_data) * 160  # The expected length calculation considers short max_silence_duration, hence early stopping is anticipated
         assert len(result) < expected_length, f"Recording should have stopped early due to silence, expected < {expected_length}, got {len(result)}"
+        
 @pytest.mark.asyncio
 async def test_maximum_duration_limit(whisper_stt):
     """
-    测试录音时达到最大时长是否会停止。
+    Tests if recording stops upon reaching maximum duration.
     """
     # 生成一长串的静音数据，比最大录音时长还长
+    # Create an extended silence data array, longer than the maximum recording duration
     long_silence_data = [np.zeros((160,), dtype=np.int16) for _ in range(700)]  # more than maximum duration
+    
+    # Record the audio using the given simulation input and specify a max duration of 5 seconds
     result = await whisper_stt.record_audio_vad(simulation_input=long_silence_data, max_duration=5)
+    
+    # Calculate the maximum length of recorded data expected based on sampling rate and max duration
     expected_max_length = 5 * whisper_stt.sample_rate  # max_duration in samples
+    
+    # Assert that the length of the result is less than or equal to the expected maximum length
     assert len(result) <= expected_max_length, "Recording should stop after reaching max duration"
 
 @pytest.mark.asyncio
 async def test_record_audio_vad_speech_detection(whisper_stt):
     """
-    测试录音过程中对于语音和静音的正确处理。
+    Test for correct handling of speech and silence during the recording process.
     """
-    # 交替静音与非静音帧
+    # Alternating between silence and noise frames
     silence_frame = np.zeros((160,), dtype=np.int16)
     noise_frame = np.ones((160,), dtype=np.int16)
     simulation_input = [noise_frame if i % 2 == 0 else silence_frame for i in range(20)]
     
-    # 模拟 vad.is_speech 对于静音和非静音帧返回不同值
+    # Mocking vad.is_speech to return varying responses for silence and noise frames
     with patch('whisper.webrtcvad.Vad') as mock_vad:
         mock_vad_instance = mock_vad.return_value
+        # Using a lambda to return True when the frame is a noise frame and False when it's a silence frame
         mock_vad_instance.is_speech.side_effect = lambda data, rate: np.any(data != 0)
         
+        # Recording the audio using the WhisperSTT's record_audio_vad method with the simulated input
         result = await whisper_stt.record_audio_vad(simulation_input=simulation_input)
+        # Asserting that the audio is correctly processed and recordings are made based on the vad.is_speech output
         assert len(result) > 0, "Should correctly process and record audio based on vad.is_speech result"
         
 @pytest.mark.asyncio
 async def test_cleanup_failure_logged(whisper_stt):
     """
-    测试无法删除临时文件时，异常如何被处理和记录。
+    This test verifies how exceptions are handled and logged when deleting a temporary file fails.
     """
+    # Mocking the os.unlink function to simulate a scenario where an OSError occurs during file deletion.
     with patch('whisper.os.unlink') as mock_unlink:
-        # 模拟删除文件时出现了 OSError。
+        # Setting the side effect of the mocked function to raise an OSError with a specific message.
         mock_unlink.side_effect = OSError("Failed to delete file")
 
+        # Patching the logging.error function to verify if the error is being logged correctly.
         with patch('logging.error') as mock_log:
-            # 假设临时文件路径为 'temp_audio_file.wav'。
+            # Assuming the temporary file path is 'temp_audio_file.wav', this function attempts to clean it up.
             whisper_stt.cleanup_temp_file('temp_audio_file.wav')
-            # 根据实际调用中记录的错误消息进行断言。
+            # Asserting that the log function was called exactly once with the specified error message.
             mock_log.assert_called_once_with(
                 "Failed to delete temp file temp_audio_file.wav: Failed to delete file"
             )
