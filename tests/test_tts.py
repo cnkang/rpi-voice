@@ -1,10 +1,11 @@
+import os
 from unittest.mock import patch, AsyncMock
+import subprocess
 import httpx
 import pytest
 from httpx import Response, Request
-from unittest.mock import patch
 import pytest
-import os
+
 import tts as tts_module
 
 @pytest.mark.asyncio
@@ -93,3 +94,18 @@ async def test_retry_logic_on_temporary_failures():
         tts = tts_module.TextToSpeech()
         with pytest.raises(AssertionError):
             await tts.synthesize_speech("Hello")
+def test_script_main_executes():
+    """
+    Test that the whisper.py script executes its main functionality when run as a script.
+    """
+    # Path to the script
+    script_path = 'tts.py'
+
+    # Run the script as a subprocess
+    result = subprocess.run(['python', script_path], capture_output=True, text=True)
+    
+    # Assert non-error exit or specific expected output
+    assert result.returncode == 0, "Script should exit without error"
+     # Check for '200 OK' in the output
+    output_combined = result.stdout + result.stderr  # Combining stdout and stderr for comprehensive search
+    assert "200 OK" in output_combined, "Output should contain '200 OK'"
