@@ -63,14 +63,18 @@ async def test_transcribe_speech_error_handling(caplog):
     Test that `transcribe_speech_to_text` logs an exception 
     when an error occurs during transcription.
     """
+    # Create a mock object for the WhisperSTT with a predefined side effect that raises an Exception
     mock_whisper = AsyncMock()
     mock_whisper.transcribe_audio.side_effect = Exception("Mock Exception")
 
+    # Patch the WhisperSTT import in `app` module to use the mock object
     with patch('app.WhisperSTT', return_value=mock_whisper):
+        # Call the function under test
         await transcribe_speech_to_text()
 
-    # 确保异常消息被正确地记录
+    # Check the caplog log records to ensure the exception message was logged as expected
     found = any("Mock Exception" in record.message for record in caplog.records)
+    # Assert to confirm the expected message was logged
     assert found, "Expected 'Mock Exception' but wasn't found in logged output."
 
 @pytest.fixture(autouse=True)
