@@ -1,16 +1,17 @@
-import httpx
 import asyncio
-import numpy as np
-import sounddevice as sd
-from scipy.io.wavfile import write
 import tempfile
 import uuid
 import os
 import logging
+from typing import Optional, List
+
+import numpy as np
+import sounddevice as sd
+from scipy.io.wavfile import write
+from openai import AsyncAzureOpenAI
+import httpx
 import webrtcvad
 from dotenv import load_dotenv
-from openai import AsyncAzureOpenAI
-from typing import Optional, List
 
 
 # Configure logging
@@ -59,8 +60,9 @@ class WhisperSTT:
             write(tmp_audio_file_path, self.sample_rate, audio_array.astype(np.int16))
             return tmp_audio_file_path
         except Exception as e:
-            logging.error(f"Failed to write audio to file: {e}")
+            logging.error("Failed to write audio to file: %s", str(e))  # Extracting the error message only
             raise
+
 
     async def record_audio_vad(
         self,
@@ -179,32 +181,49 @@ class WhisperSTT:
         return final_audio
 
     async def transcribe_audio(self, audio_array: np.ndarray) -> str:
-            """Transcribes the audio."""
-            temp_file_path = self.array_to_bytes(audio_array)
-            try:
-                with open(temp_file_path, "rb") as audio_file:
-                    response = await self.client.audio.transcriptions.create(
-                        model=os.getenv("WHISPER_MODEL_NAME"), file=audio_file
-                    )
-                    transcript = response.text
-                    return transcript
-            except asyncio.CancelledError:
-                logging.warning("The recording was cancelled.")
-                return "The recording was cancelled"
-            except Exception as e:
-                logging.error("Error transcribing audio: %s", e)
-                return "Failed to transcribe audio"
-            finally:
-                self.cleanup_temp_file(temp_file_path)
+        """
+        Transcribes the audio.
+
+        Args:
+            audio_array: The audio array to be transcribed.
+
+        Returns:
+            The transcribed text.
+        """
+        # Convert the audio array to a temporary WAV file
+        temp_file_path = self.array_to_bytes(audio_array)
+
+        try:
+            # Open the temporary WAV file in binary mode
+            with open(temp_file_path, "rb") as audio_file:
+                # Send the audio file to the Azure OpenAI API for transcription
+                response = await self.client.audio.transcriptions.create(
+                    model=os.getenv("WHISPER_MODEL_NAME"), file=audio_file
+                )
+                # Extract the transcribed text from the response
+                transcript = response.text
+                return transcript
+        except asyncio.CancelledError:
+            # If the recording is cancelled, return a message indicating this
+            logging.warning("The recording was cancelled.")
+            return "The recording was cancelled"
+        except Exception as e:
+            # If an error occurs during transcription, return a message indicating this
+            logging.error("Error transcribing audio: %s", e)
+            return "Failed to transcribe audio"
+        finally:
+            # Clean up the temporary WAV file
+            self.cleanup_temp_file(temp_file_path)
+
     def cleanup_temp_file(self, file_path: str) -> None:
         """
         Deletes the temporary file at the specified file path.
         """
         try:
             os.remove(file_path)
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             logging.error("Temp file not found: %s", file_path)  # Updated error message for clarity
-        except OSError as e:
+        except OSError:
             logging.error("Failed to delete temp file: %s", file_path)  # Updated error message for clarity
 
 async def main():
@@ -222,10 +241,9 @@ async def main():
     try:
         audio_data = await whisper_stt.record_audio_vad()
         transcription = await whisper_stt.transcribe_audio(audio_data)
-        logging.info(f"Transcription result: {transcription}")
+        logging.info("Transcription result: %s", transcription)
     except Exception as e:
-        logging.error(f"An error occurred: {e}")
-
+        logging.error("An error occurred: %s", e)
 
 if __name__ == "__main__":
     asyncio.run(main())

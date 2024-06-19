@@ -451,21 +451,23 @@ async def test_array_to_bytes_permission_error_handling(whisper_stt_test):
     with patch('whisper.write') as mock_write, \
          patch('logging.error') as mock_log_error:
         mock_write.side_effect = PermissionError("Permission denied")
-
+    
         # Try to invoke the function which should raise a PermissionError
         with pytest.raises(PermissionError) as exc_info:
-            whisper_stt_test.array_to_bytes(audio_data)
-        
+            await whisper_stt_test.array_to_bytes(audio_data)
+    
         # Check if the correct exception was captured
         assert exc_info.type is PermissionError, "A PermissionError should be raised"
         expected_message = "Permission denied"
         assert str(exc_info.value) == expected_message, f"Exception message should be '{expected_message}'"
-
+    
         # Ensure the write function was indeed attempted
         assert mock_write.called, "The write function should have been attempted"
-        
+    
         # Verify if the error was logged correctly
-        mock_log_error.assert_called_with(f"Failed to write audio to file: {expected_message}")
+        # Note: Logging the message of the exception, not the exception object itself
+        mock_log_error.assert_called_with("Failed to write audio to file: %s", expected_message)
+
 
 # tests/test_whisper.py
 @pytest.mark.asyncio
