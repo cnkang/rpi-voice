@@ -60,8 +60,9 @@ class WhisperSTT:
             write(tmp_audio_file_path, self.sample_rate, audio_array.astype(np.int16))
             return tmp_audio_file_path
         except Exception as e:
-            logging.error("Failed to write audio to file: %s", e)
+            logging.error("Failed to write audio to file: %s", str(e))  # Extracting the error message only
             raise
+
 
     async def record_audio_vad(
         self,
