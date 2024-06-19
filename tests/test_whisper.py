@@ -15,6 +15,9 @@ from pytest import raises
 from whisper import WhisperSTT  # Assuming whisper is a local module
 from whisper import main as whisper_main
 
+@pytest.fixture(autouse=True)
+def set_log_level(caplog):
+    caplog.set_level(logging.DEBUG)
 @pytest.fixture
 def whisper_stt_test():
     """
@@ -65,6 +68,18 @@ async def test_record_audio_vad(whisper_stt_test):
 
 @pytest.mark.asyncio
 async def test_transcribe_audio(whisper_stt_test):
+    """
+    Test the transcription of audio using the WhisperSTT instance.
+    This test checks the functionality of transcribing audio by providing a sample audio array.
+    It simulates the creation of a response object with a predefined transcription result to confirm the correct transcription behavior of the WhisperSTT instance.
+
+    Args:
+        whisper_stt_test: A fixture providing a WhisperSTT instance for testing.
+
+    Asserts:
+        - Ensures the transcribed result is a string.
+        - Compares the transcribed text with the expected transcription result.
+    """
     audio = np.array([1, 2, 3], dtype=np.int16)
     expected_transcription = "test transcript"
 
@@ -352,15 +367,22 @@ async def test_record_audio_vad_speech_detection(whisper_stt_test):
         assert len(result) > 0, "Should correctly process and record audio based on vad.is_speech result"
         
 @pytest.mark.asyncio
-async def test_cleanup_failure_logged(whisper_stt_test):
-    with patch('os.unlink', side_effect=OSError("Could not delete file")):
-        with patch('logging.error') as mock_log:
-            whisper_stt_test.cleanup_temp_file('temp_audio_file.wav')
-            expected_error_substring = "Failed to delete temp file temp_audio_file.wav:"
-            args_of_call = str(mock_log.call_args)
-            assert expected_error_substring in args_of_call, "Error log should contain the expected message substring"
-@pytest.mark.asyncio
 async def test_early_stop_due_to_silence(whisper_stt_test):
+    """
+    Test the early stop due to silence in the record_audio_vad function.
+
+    This test simulates a sequence of silence frames and checks if the recording stops due to the maximum silence duration.
+
+    Parameters:
+    - whisper_stt_test (WhisperSTT): An instance of the WhisperSTT class.
+
+    Returns:
+    - None
+
+    Raises:
+    - AssertionError: If the recording does not stop due to the maximum silence duration.
+
+    """
     silence_frame = np.zeros((160,), dtype=np.int16)
     # Simulating 30 seconds of silence which should trigger stop early than the max duration set to 120 seconds
     simulated_input = [silence_frame for _ in range(3000)]  # each is 0.01 seconds, total 30 seconds of silence
@@ -394,26 +416,25 @@ async def test_transcription_api_failure(whisper_stt_test):
         assert result == "Failed to transcribe audio", "Should return failure message on API failure"
         
 @pytest.mark.asyncio
-async def test_cleanup_error(whisper_stt_test):
+async def test_cleanup_temp_file(whisper_stt_test, caplog):
     """
-    Test the exception handling of the cleanup_temp_file method in WhisperSTT when there is an error deleting the
-    temporary file.
+    Test the cleanup_temp_file method's handling of file deletion errors,
+    ensuring they are logged correctly.
+    """
+    non_existent_file = "non_existent_file.wav"
+    protected_file = "protected_file.wav"
+ 
+    with patch('os.remove', side_effect=FileNotFoundError):
+        whisper_stt_test.cleanup_temp_file(non_existent_file)
+        expected_log = "Temp file not found: non_existent_file.wav"
+        assert expected_log in caplog.text, f"Expected log not found: {expected_log}"
+ 
+    caplog.clear()
+    with patch('os.remove', side_effect=OSError):
+        whisper_stt_test.cleanup_temp_file(protected_file)
+        expected_error = "Failed to delete temp file: protected_file.wav"
+        assert expected_error in caplog.text, f"Expected error not found: {expected_error}"
 
-    This test ensures that the method handles the error correctly by logging the error message.
-    """
-    # Create a temporary file path that does not exist
-    temp_file_path = "non_existent_file.wav"
-    
-    # Patch the os.unlink function to raise an OSError when trying to delete the file
-    with patch('os.unlink', side_effect=OSError("Could not delete file")), \
-         patch('logging.error') as mock_log:
-        # Call the cleanup_temp_file method with the non-existent file path
-        whisper_stt_test.cleanup_temp_file(temp_file_path)
-        
-        # Assert that the error message is logged correctly
-        expected_error_substring = "Failed to delete temp file non_existent_file.wav:"
-        args_of_call = str(mock_log.call_args)
-        assert expected_error_substring in args_of_call, "Error log should contain the expected message substring"
 
 @pytest.mark.asyncio
 async def test_array_to_bytes_permission_error_handling(whisper_stt_test):
@@ -493,6 +514,18 @@ async def test_main_general_exception(caplog):
 
 class TestHandler(logging.Handler):
     def __init__(self):
+        """
+        Initializes a new instance of the TestHandler class.
+
+        This constructor initializes the TestHandler class by calling the constructor of the base logging.Handler class.
+        It also initializes an empty list called 'records' to store log records.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        """
         super(TestHandler, self).__init__()
         self.records = []  # Initialize a list to store log records
     def emit(self, record):

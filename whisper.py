@@ -10,12 +10,12 @@ import logging
 import webrtcvad
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
-from typing import Optional,List
+from typing import Optional, List
 
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
@@ -94,6 +94,24 @@ class WhisperSTT:
         recording_active: bool = True
 
         def process_frame(frame_data: np.ndarray) -> None:
+    """
+    Process a single audio frame and update the silence duration and recording status.
+
+    Args:
+        frame_data (np.ndarray): The audio frame data to be processed.
+
+    Returns:
+        None
+
+    Raises:
+        AssertionError: If the frame data dtype is not int16.
+
+    Notes:
+        - This function updates the `current_silence_duration` variable based on whether the frame contains speech or not.
+        - If the silence duration exceeds the `num_silent_frames_to_stop` threshold, the `recording_active` variable is set to False.
+        - The processed frame is appended to the `recorded_frames` list.
+        - If the total duration of the recorded frames exceeds the `max_duration` threshold, the `recording_active` variable is set to False.
+    """
             nonlocal current_silence_duration, recording_active
             assert frame_data.dtype == np.int16, "Frame data must be of dtype int16"
             is_speech = vad.is_speech(frame_data.tobytes(), self.sample_rate)
@@ -136,11 +154,11 @@ class WhisperSTT:
                     channels=1,
                     dtype="int16",
                     blocksize=160,
-                ) as stream:
+                ):
                     while recording_active:
                         await asyncio.sleep(0.1)  # Adjusted for asyncio compatibility
             except sd.PortAudioError as e:
-                raise AssertionError(f"Error occurred during recording: {e}")
+                raise AssertionError(f'Error occurred during recording: {e}') from e
 
         if recorded_frames:
             final_audio = np.concatenate(recorded_frames)
@@ -172,25 +190,28 @@ class WhisperSTT:
                 return "Failed to transcribe audio"
             finally:
                 self.cleanup_temp_file(temp_file_path)
-
-
     def cleanup_temp_file(self, file_path: str) -> None:
         """
         Deletes the temporary file at the specified file path.
-
-        Args:
-            file_path: The path of the temporary file to delete.
-
-        Raises:
-            OSError: If the file cannot be deleted.
         """
         try:
             os.remove(file_path)
+        except FileNotFoundError as e:
+            logging.error("Temp file not found: %s", file_path)  # Updated error message for clarity
         except OSError as e:
-            logging.error(f"Failed to delete temp file {file_path}: {e}")
-
+            logging.error("Failed to delete temp file: %s", file_path)  # Updated error message for clarity
 
 async def main():
+    """
+    Asynchronously records audio using voice activity detection (VAD), transcribes the audio using WhisperSTT,
+    and logs the transcription result. If any error occurs during the process, it is logged.
+
+    Returns:
+        None
+
+    Raises:
+        Exception: If an error occurs during the recording or transcription process.
+    """
     whisper_stt = WhisperSTT()
     try:
         audio_data = await whisper_stt.record_audio_vad()
