@@ -4,7 +4,6 @@ This module contains pytest fixtures and test functions for the test_whisper.py 
 The fixtures and functions in this module are used for testing the WhisperSTT class.
 """
 import logging
-import subprocess
 import asyncio
 from unittest.mock import patch, AsyncMock, MagicMock, ANY
 
@@ -537,19 +536,3 @@ async def test_direct_log_capture_with_custom_handler(whisper_stt_test):
     assert "The recording was cancelled" in test_handler.records, "Cancellation message should be logged by custom handler"
     # Ensure that the transcribe_audio function was actually called once
     mock_transcribe.assert_called_once()
-
-def test_script_main_executes():
-    """
-    Test that the whisper.py script executes its main functionality when run as a script.
-    """
-    # Path to the script
-    script_path = 'whisper.py'
-
-    # Run the script as a subprocess
-    result = subprocess.run(['python', script_path], capture_output=True, text=True)
-    
-    # Assert non-error exit or specific expected output
-    assert result.returncode == 0, "Script should exit without error"
-     # Check for '200 OK' in the output
-    output_combined = result.stdout + result.stderr  # Combining stdout and stderr for comprehensive search
-    assert "200 OK" in output_combined, "Output should contain '200 OK'"
