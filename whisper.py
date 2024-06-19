@@ -94,24 +94,24 @@ class WhisperSTT:
         recording_active: bool = True
 
         def process_frame(frame_data: np.ndarray) -> None:
-    """
-    Process a single audio frame and update the silence duration and recording status.
+            """
+            Process a single audio frame and update the silence duration and recording status.
 
-    Args:
-        frame_data (np.ndarray): The audio frame data to be processed.
+            Args:
+                frame_data (np.ndarray): The audio frame data to be processed.
 
-    Returns:
-        None
+            Returns:
+                None
 
-    Raises:
-        AssertionError: If the frame data dtype is not int16.
+            Raises:
+                AssertionError: If the frame data dtype is not int16.
 
-    Notes:
-        - This function updates the `current_silence_duration` variable based on whether the frame contains speech or not.
-        - If the silence duration exceeds the `num_silent_frames_to_stop` threshold, the `recording_active` variable is set to False.
-        - The processed frame is appended to the `recorded_frames` list.
-        - If the total duration of the recorded frames exceeds the `max_duration` threshold, the `recording_active` variable is set to False.
-    """
+            Notes:
+                - This function updates the `current_silence_duration` variable based on whether the frame contains speech or not.
+                - If the silence duration exceeds the `num_silent_frames_to_stop` threshold, the `recording_active` variable is set to False.
+                - The processed frame is appended to the `recorded_frames` list.
+                - If the total duration of the recorded frames exceeds the `max_duration` threshold, the `recording_active` variable is set to False.
+            """
             nonlocal current_silence_duration, recording_active
             assert frame_data.dtype == np.int16, "Frame data must be of dtype int16"
             is_speech = vad.is_speech(frame_data.tobytes(), self.sample_rate)
