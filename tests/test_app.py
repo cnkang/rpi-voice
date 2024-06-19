@@ -5,7 +5,7 @@ import pytest
 from unittest.mock import patch, AsyncMock
 
 # Adapt imports as needed
-from app import create_openai_client, interact_with_openai, synthesize_and_play_speech, main, transcribe_speech_to_text
+from app import create_openai_client, interact_with_openai, synthesize_and_play_speech, main, transcribe_speech_to_text, AudioStreamError
 
 @pytest.mark.asyncio
 async def test_interact_with_openai_error_handling():
@@ -162,13 +162,51 @@ async def test_create_openai_client_partial_env_vars():
 
 @pytest.mark.asyncio
 async def test_synthesize_and_play_speech_with_invalid_stream():
+    """
+    Test that `synthesize_and_play_speech` raises an `AudioStreamError`
+    when provided with invalid audio stream.
+    """
+    # Mock the TextToSpeech class to return None for synthesize_speech method
     mock_tts = AsyncMock()
     mock_tts.synthesize_speech.return_value = None
-    
-    with patch('app.TextToSpeech', return_value=mock_tts):
-        with pytest.raises(Exception):
-            await synthesize_and_play_speech("Hello")
 
+    # Patch the TextToSpeech class with the mock object
+    with patch('app.TextToSpeech', return_value=mock_tts):
+        # Assert that `synthesize_and_play_speech` raises `AudioStreamError`
+        with pytest.raises(AudioStreamError) as exc_info:
+            await synthesize_and_play_speech("Hello")
+        # Verify that the exception message contains the expected error message
+        assert "Failed to synthesize speech or get valid audio stream" in str(exc_info.value)
+
+@pytest.mark.asyncio
+async def test_speech_synthesis_error_logging(caplog):
+    """
+    Test that when `synthesize_and_play_speech` function encounters an error,
+    an error message is logged.
+    """
+    # Arrange
+    tscript = "valid text"
+    mock_tts = AsyncMock()
+    # Mock the TextToSpeech class to return None for synthesize_speech method
+    mock_tts.synthesize_speech.return_value = None
+
+    # Act
+    # Patch the TextToSpeech class with the mock object
+    with patch('app.TextToSpeech', return_value=mock_tts):
+        try:
+            # Invoke the function being tested
+            await synthesize_and_play_speech(tscript)
+        except AudioStreamError:
+            # Suppress the exception
+            pass        
+
+    # Assert
+    # Check if the expected error message is logged
+    error_logged = any(
+        'Failed to synthesize speech or get valid audio stream' in record.message
+        for record in caplog.records
+    )
+    assert error_logged, "Error message should have been logged"
 @pytest.fixture
 def setup_environment():
     with patch.dict(os.environ, {'VOICE_NAME': 'default-voice', 'MODEL_NAME': 'default-model'}):

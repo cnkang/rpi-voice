@@ -18,6 +18,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 VOICE_NAME = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
 MODEL_NAME = os.getenv("MODEL_NAME")
 
+class AudioStreamError(Exception):
+    """Exception raised when the audio stream is invalid or synthesis fails."""
+    pass
+
 # Function to create an async OpenAI client
 async def create_openai_client():
     """Creates an async client for OpenAI using pre-loaded environment variables.
@@ -118,7 +122,7 @@ async def synthesize_and_play_speech(tscript):
         if not stream:
             error_msg = "Failed to synthesize speech or get valid audio stream"
             logging.error(error_msg)
-            raise Exception(error_msg)  # Ensure code raises an exception here if the stream is invalid
+            raise AudioStreamError(error_msg)  # Ensure code raises an exception here if the stream is invalid
 
         # If valid stream is obtained, play the synthesized speech
         await tts_processor.play_speech(stream)
