@@ -162,7 +162,7 @@ class WhisperSTT:
                     response = await self.client.audio.transcriptions.create(
                         model=os.getenv("WHISPER_MODEL_NAME"), file=audio_file
                     )
-                    transcript =  response.text
+                    transcript = response.text
                     return transcript
             except asyncio.CancelledError:
                 logging.warning("The recording was cancelled.")
