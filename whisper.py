@@ -93,34 +93,17 @@ class WhisperSTT:
         num_silent_frames_to_stop = int(max_silence_duration * self.sample_rate / 160)
         recording_active: bool = True
 
-        def process_frame(frame_data: np.ndarray) -> None:
+        def update_recording_status(frame_data,is_speech: bool) -> None:
             """
-            Process a single audio frame and update the silence duration and recording status.
+            Update the silence duration and recording status based on whether the frame contains speech or not.
 
             Args:
-                frame_data (np.ndarray): The audio frame data to be processed.
+                is_speech (bool): Whether the frame contains speech or not.
 
             Returns:
                 None
-
-            Raises:
-                AssertionError: If the frame data dtype is not int16.
-
-            Notes:
-                - This function updates the `current_silence_duration` variable based on whether the frame contains speech or not.
-                - If the silence duration exceeds the `num_silent_frames_to_stop` threshold, the `recording_active` variable is set to False.
-                - The processed frame is appended to the `recorded_frames` list.
-                - If the total duration of the recorded frames exceeds the `max_duration` threshold, the `recording_active` variable is set to False.
             """
             nonlocal current_silence_duration, recording_active
-            assert frame_data.dtype == np.int16, "Frame data must be of dtype int16"
-            is_speech = vad.is_speech(frame_data.tobytes(), self.sample_rate)
-            logging.debug(
-                "Frame speech status: %s, Frame count: %s",
-                is_speech,
-                len(recorded_frames),
-            )
-
             if not is_speech:
                 current_silence_duration += 1
                 logging.debug("Current silence duration: %s", current_silence_duration)
@@ -135,6 +118,29 @@ class WhisperSTT:
 
             if len(recorded_frames) * (160 / self.sample_rate) >= max_duration:
                 recording_active = False
+
+        def process_frame(frame_data: np.ndarray) -> None:
+            """
+            Process a single audio frame and update the silence duration and recording status.
+
+            Args:
+                frame_data (np.ndarray): The audio frame data to be processed.
+
+            Returns:
+                None
+
+            Raises:
+                AssertionError: If the frame data dtype is not int16.
+            """
+            nonlocal recording_active
+            assert frame_data.dtype == np.int16, "Frame data must be of dtype int16"
+            is_speech = vad.is_speech(frame_data.tobytes(), self.sample_rate)
+            logging.debug(
+                "Frame speech status: %s, Frame count: %s",
+                is_speech,
+                len(recorded_frames),
+            )
+            update_recording_status(frame_data,is_speech)
 
         if simulation_input is not None:
             assert all(
