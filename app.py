@@ -91,7 +91,11 @@ async def interact_with_openai(client, prompts):
             frequency_penalty=0,
             presence_penalty=0
         )
-        result = response.choices[0].message.content if response.choices else "No response returned."
+        if response.choices and response.choices[0]:
+            result = response.choices[0].message.content
+        else:
+            result = "No response returned."
+
         return result
     except Exception as e:
         logging.error("Error interacting with OpenAI: %s", str(e))
@@ -99,20 +103,29 @@ async def interact_with_openai(client, prompts):
 
 # Function to synthesize and play speech
 async def synthesize_and_play_speech(tscript):
+    # Create an instance of TextToSpeech to handle TTS operations
     tts_processor = TextToSpeech()
     try:
+        # Check if the input text script is None, logging an error if so
         if tscript is None:
             logging.error("Text script is None, cannot synthesize speech")
             return
 
-        # Synthesize speech and play it
+        # Use the TTS processor to synthesize the text into a streaming audio format
         stream = await tts_processor.synthesize_speech(tscript)
-        if stream:
-            await tts_processor.play_speech(stream)
-        else:
-            logging.error("Failed to synthesize speech or get valid audio stream")
+        
+        # If the speech synthesis failed or returned no valid stream, log error and raise an exception
+        if not stream:
+            error_msg = "Failed to synthesize speech or get valid audio stream"
+            logging.error(error_msg)
+            raise Exception(error_msg)  # Ensure code raises an exception here if the stream is invalid
+
+        # If valid stream is obtained, play the synthesized speech
+        await tts_processor.play_speech(stream)
     except Exception as e:
+        # Log any exceptions during the synthesis or playback process and rethrow the exception
         logging.error("Error while synthesizing speech: %s", str(e))
+        raise  # Ensure the caught exception is rethrown
 
 
 async def main():

@@ -127,7 +127,39 @@ async def test_interact_with_openai_valid_input():
     response = await interact_with_openai(client, valid_prompts)
     assert response == "Valid response"
 
+@pytest.mark.asyncio
+async def test_interact_with_openai_branch_coverage():
+    client = AsyncMock()
+    valid_prompts = [{"role": "system", "content": "Valid input"}]
+    client.chat.completions.create.return_value = AsyncMock(choices=[None])  # Simulate No response returned scenario
 
+    response = await interact_with_openai(client, valid_prompts)
+    assert response == "No response returned."  # Verify handling of missing choices
+
+@pytest.mark.asyncio
+async def test_interact_with_openai_exception():
+    client = AsyncMock()
+    client.chat.completions.create.side_effect = Exception("Test Exception")
+
+    with pytest.raises(AssertionError) as exc_info:
+        await interact_with_openai(client, [{"role": "user", "content": "Hello"}])
+    assert "Error in the AI response: Test Exception" in str(exc_info.value)
+
+@pytest.mark.asyncio
+async def test_create_openai_client_partial_env_vars():
+    with patch.dict(os.environ, {'AZURE_OPENAI_API_KEY': 'key', 'AZURE_API_VERSION': '', 'AZURE_OPENAI_ENDPOINT': 'endpoint'}):
+        with pytest.raises(ValueError) as exc_info:
+            await create_openai_client()
+        assert "AZURE_API_VERSION is required but missing" in str(exc_info.value)
+
+@pytest.mark.asyncio
+async def test_synthesize_and_play_speech_with_invalid_stream():
+    mock_tts = AsyncMock()
+    mock_tts.synthesize_speech.return_value = None
+    
+    with patch('app.TextToSpeech', return_value=mock_tts):
+        with pytest.raises(Exception):
+            await synthesize_and_play_speech("Hello")
 
 @pytest.fixture
 def setup_environment():
