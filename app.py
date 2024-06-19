@@ -51,7 +51,7 @@ async def transcribe_speech_to_text(whisper_instance=None):
     whisper = whisper_instance or WhisperSTT()
     try:
         # Make sure to await both the recording and transcription processes
-        audio = await asyncio.get_running_loop().run_in_executor(None, whisper.record_audio_vad)
+        audio = await whisper.record_audio_vad()
         transcription = await whisper.transcribe_audio(audio)
         return transcription
     except Exception as e:
