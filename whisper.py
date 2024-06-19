@@ -95,10 +95,13 @@ class WhisperSTT:
             except Exception as e:
                 logging.error("Error occurred during recording: %s", e)
 
-        final_audio = np.concatenate(recorded_frames)
-        logging.info(f"Recording finished. Total duration: {len(final_audio) / self.sample_rate}s")
+        if recorded_frames:
+            final_audio = np.concatenate(recorded_frames)
+        else:
+            # Return an empty array if no frames have been recorded
+            final_audio = np.array([], dtype=np.int16)
+        logging.info(f"Recording finished. Total duration: {len(final_audio) / self.sample_rate}s")        
         return final_audio
-
 
     async def transcribe_audio(self, audio_array):
         """Transcribes the audio."""
@@ -109,6 +112,9 @@ class WhisperSTT:
                     model=os.getenv("WHISPER_MODEL_NAME"), file=audio_file
                 )
                 return transcript.text
+        except asyncio.CancelledError:
+            logging.warning("The recording was cancelled.")
+            return "The recording was cancelled"
         except Exception as e:
             logging.error("Error transcribing audio: %s", e)
             return "Failed to transcribe audio"
@@ -128,8 +134,6 @@ async def main():
         audio_data = await whisper_stt.record_audio_vad()
         transcription = await whisper_stt.transcribe_audio(audio_data)
         logging.info(f"Transcription result: {transcription}")
-    except asyncio.CancelledError:
-        logging.warning("The recording was cancelled.")
     except Exception as e:
         logging.error(f"An error occurred: {e}")
 
