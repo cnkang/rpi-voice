@@ -1,8 +1,8 @@
 # tests/test_app.py
-
-import pytest
 import os
-from unittest.mock import patch, AsyncMock, MagicMock, call
+import logging
+import pytest
+from unittest.mock import patch, AsyncMock
 
 # Adapt imports as needed
 from app import create_openai_client, interact_with_openai, synthesize_and_play_speech, main, transcribe_speech_to_text
@@ -63,15 +63,19 @@ async def test_transcribe_speech_error_handling(caplog):
     Test that `transcribe_speech_to_text` logs an exception 
     when an error occurs during transcription.
     """
-    mock_whisper = MagicMock()
+    mock_whisper = AsyncMock()
     mock_whisper.transcribe_audio.side_effect = Exception("Mock Exception")
 
     with patch('app.WhisperSTT', return_value=mock_whisper):
         await transcribe_speech_to_text()
 
-    # Verify that the exception message is logged
+    # 确保异常消息被正确地记录
     found = any("Mock Exception" in record.message for record in caplog.records)
     assert found, "Expected 'Mock Exception' but wasn't found in logged output."
+
+@pytest.fixture(autouse=True)
+def setup_logging(caplog):
+    caplog.set_level(logging.ERROR)
 
 @pytest.mark.asyncio
 async def test_create_openai_client_missing_env_vars():
