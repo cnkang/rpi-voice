@@ -2,10 +2,11 @@
 __pycache__/
 *.py[cod]
 *$py.class
-
+.vscode/*
 # Voice Files
 *.wav
 *.mp3
+*.m4a
 
 # C extensions
 *.so
