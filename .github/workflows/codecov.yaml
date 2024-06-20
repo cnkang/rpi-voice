@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev-main
+      - dev-azure-tts
   pull_request:
     branches:
       - main
