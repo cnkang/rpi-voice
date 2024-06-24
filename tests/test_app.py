@@ -1,9 +1,10 @@
 # tests/test_app.py
 import os
 import pytest
-from unittest.mock import patch, AsyncMock
+from unittest import TestCase, mock
+from unittest.mock import patch, AsyncMock, call
 import openai
-
+from dotenv import load_dotenv
 from app import (
     initialize_env, create_openai_client, transcribe_speech_to_text,
     interact_with_openai, synthesize_and_play_speech, main
@@ -96,3 +97,19 @@ async def test_main_flow_no_openai_client(setup_env_vars):
         await main()
         mock_transcribe.assert_not_called()
         mock_synth.assert_not_called()
+def test_load_env_true():
+    with patch('app.load_dotenv') as mock_load_dotenv:
+        initialize_env(load_env=True)
+    mock_load_dotenv.assert_called_once()
+
+def test_required_env_vars_present(monkeypatch):
+    monkeypatch.setitem(os.environ, 'AZURE_OPENAI_API_KEY', 'test_api_key')
+    monkeypatch.setitem(os.environ, 'AZURE_OPENAI_ENDPOINT', 'test_endpoint')
+    initialize_env(load_env=False)  # Patch directly affects the module under test.
+
+
+def test_required_env_vars_missing(monkeypatch):
+    monkeypatch.setitem(os.environ, 'AZURE_OPENAI_API_KEY', '')
+    monkeypatch.setitem(os.environ, 'AZURE_OPENAI_ENDPOINT', '')
+    with pytest.raises(ValueError, match="Missing environment variables"):
+        initialize_env(load_env=False)

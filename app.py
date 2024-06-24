@@ -10,15 +10,32 @@ from whisper import WhisperSTT
 
 # Load environment variables
 def initialize_env(load_env: bool = True) -> None:
-    """Load environment variables and set default values if not provided."""
+    """
+    Initialize environment variables for the application.
+
+    Args:
+        load_env (bool, optional): Whether to load environment variables from a .env file.
+            Defaults to True.
+
+    Raises:
+        ValueError: If any of the required environment variables are missing.
+
+    Returns:
+        None
+    """
+    # Load environment variables from .env file
     if load_env:
         load_dotenv()
 
+    # Required environment variables
     required_env_vars = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"]
-    missing_vars = [var for var in required_env_vars if var not in os.environ]
+
+    # Check if any required environment variables are missing
+    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
     if missing_vars:
         raise ValueError(f"Missing environment variables: {', '.join(missing_vars)}")
 
+    # Set default values for environment variables
     os.environ.setdefault("AZURE_API_VERSION", "2024-05-01-preview")
     os.environ.setdefault("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
 
