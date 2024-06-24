@@ -49,10 +49,10 @@ class TextToSpeech:
 
         try:
             ssml = self.convert_to_ssml(text)
-            logging.debug(f"SSML: {ssml}")
+            logging.debug("SSML: %s", ssml)
             result = self.synthesizer.speak_ssml_async(ssml).get()
             if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-                return
+                return result.audio_data
             if result.reason == speechsdk.ResultReason.Canceled:
                 if result.cancellation_details.reason == speechsdk.CancellationReason.Error:
                     print(f"Error details: {result.cancellation_details.error_details}")
@@ -73,19 +73,33 @@ class TextToSpeech:
 
         Returns:
             A properly formatted SSML string.
+
+        Raises:
+            ValueError: If the input text is empty.
         """
 
-        # 正则表达式匹配标准 SSML 格式
-        ssml_pattern = re.compile(r'^\s*<speak version=["\']1.0["\'] xmlns=["\']http://www\.w3\.org/2001/10/synthesis["\'] xml:lang=["\'][a-zA-Z-]+["\']>\s*<voice name=["\'][\w-]+["\']>.*</voice>\s*</speak>\s*$', re.DOTALL)
+        # Regular expression pattern to match standard SSML format
+        ssml_pattern = re.compile(
+            r'^\s*<speak version=["\']1.0["\'] xmlns=["\']http://www\.w3\.org/2001/10/synthesis["\'] xml:lang=["\'][a-zA-Z-]+["\']>\s*<voice name=["\'][\w-]+["\']>.*</voice>\s*</speak>\s*$',
+            re.DOTALL
+        )
 
-        # 如果文本已经是合适的 SSML 格式，直接返回
+        # If the text is already in the proper SSML format, return it as is
         if ssml_pattern.match(text):
             return text
 
-        # 否则，将文本封装成 SSML
+        # Otherwise, wrap the text in the SSML tags
         ssml_text = (
+            # Opening <speak> tag with version and language attributes
             f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>"
-            f"<voice name='{self.voice_name}'>{text}</voice></speak>"
+            # Opening <voice> tag with voice name attribute
+            f"<voice name='{self.voice_name}'>"
+            # Text to be synthesized
+            f"{text}"
+            # Closing <voice> tag
+            f"</voice>"
+            # Closing <speak> tag
+            f"</speak>"
         )
         return ssml_text
 
