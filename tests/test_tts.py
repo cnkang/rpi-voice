@@ -1,95 +1,94 @@
-import os
-from unittest.mock import patch, AsyncMock
-import httpx
 import pytest
-from httpx import Response, Request
-import pytest
+from unittest.mock import patch, MagicMock
+import azure.cognitiveservices.speech as speechsdk
 
 import tts as tts_module
 
+
 @pytest.mark.asyncio
-async def test_synthesize_speech():
-    """
-    Tests that synthesizing speech from a valid string in normal conditions works properly,
-    ensuring the system raises an AssertionError with an appropriate message if it fails.
-    """
+async def test_synthesize_speech_success():
     tts = tts_module.TextToSpeech()
-    with pytest.raises(AssertionError, match=r"Failed to synthesize speech"):
-        with patch('tts.TextToSpeech._make_request', side_effect=Exception("Simulated failure")):
+    mock_result = MagicMock()
+    mock_result.reason = speechsdk.ResultReason.SynthesizingAudioCompleted
+    with patch.object(tts.synthesizer, 'speak_ssml_async', return_value=MagicMock(get=MagicMock(return_value=mock_result))):
+        try:
             await tts.synthesize_speech("Test speech synthesis.")
+        except Exception as e:
+            pytest.fail(f"Unexpected exception thrown: {e}")
+
+
 
 @pytest.mark.asyncio
 async def test_synthesize_speech_empty_string():
     """
-    Tests to ensure producing speech from an empty string raises an AssertionError.
-    Verifies that invalid inputs are handled correctly.
+    Tests to ensure that synthesizing speech from an empty string raises a ValueError.
     """
     tts = tts_module.TextToSpeech()
-    with pytest.raises(AssertionError, match=r"Failed to synthesize speech: Empty input provided"):
+    with pytest.raises(ValueError, match="Text cannot be empty"):
         await tts.synthesize_speech("")
 
+
 @pytest.mark.asyncio
-async def test_synthesize_speech_http_error():
+async def test_synthesize_speech_canceled_error():
     """
-    Tests exception handling during an HTTP error. This confirms that the TextToSpeech class
-    can handle exceptions in the HTTP POST request gracefully by raising a custom AssertionError.
+    Tests exception handling when the speech synthesis is canceled due to an error.
     """
     tts = tts_module.TextToSpeech()
-    with patch('tts.TextToSpeech._make_request', side_effect=httpx.HTTPStatusError(
-        message="Error", request=Request(method="POST", url="dummy"), response=Response(status_code=500))):
-        with pytest.raises(AssertionError, match=r"Failed after maximum retries."):
-            await tts.synthesize_speech("This should fail but handle")
+    mock_cancellation = MagicMock()
+    mock_cancellation.reason = speechsdk.CancellationReason.Error
+    mock_cancellation.error_details = "Error during synthesis"
+    mock_result = MagicMock(reason=speechsdk.ResultReason.Canceled, cancellation_details=mock_cancellation)
+    
+    with patch.object(tts.synthesizer, 'speak_ssml_async', return_value=MagicMock(get=MagicMock(return_value=mock_result))):
+        with pytest.raises(RuntimeError, match="Synthesis canceled: CancellationReason.Error"):
+            await tts.synthesize_speech("This should fail due to cancellation")
+
 @pytest.mark.asyncio
-async def test_synthesize_speech_retry_logic():
+async def test_synthesize_speech_failure():
     """
-    Ensures the TextToSpeech class correctly retries HTTP POST requests under transient errors,
-    simulating two failures followed by a success. Tests that retry logic will succeed
-    after the maximum number of retry attempts.
+    Tests that the synthesizing function raises an exception when the result reason is not 
+    SynthesizingAudioCompleted and it's not Canceled.
     """
     tts = tts_module.TextToSpeech()
+    mock_result = MagicMock(reason=speechsdk.ResultReason.DeletedVoiceProfile)
+    with patch.object(tts.synthesizer, 'speak_ssml_async', return_value=mock_result):
+        with pytest.raises(RuntimeError, match="Speech synthesis failed"):
+            await tts.synthesize_speech("This should fail")
 
-    # Modify retry properties to shorten test execution time
-    tts.max_retries = 3
-    tts.retry_delay = 1
-
-    # Simulate side effects for the mocked POST method: two failed attempts followed by a success
-    http_error_response = httpx.Response(status_code=500)
-    http_error = httpx.HTTPStatusError(message="Temporary Error", request=Request(method="POST", url="dummy"), response=http_error_response)
-    successful_response = httpx.Response(status_code=200, content=b"Success binary content for audio", 
-                                         request=Request(method="POST", url="dummy"))
-    side_effects = [http_error, http_error, successful_response]
-
-    with patch('tts.TextToSpeech._make_request', side_effect=side_effects) as mock_post:
-        audio_stream = await tts.synthesize_speech("Testing retry logic.")
-        
-        assert mock_post.call_count == 3  # Verify that request was retried the correct number of times
-        assert audio_stream is not None  # Confirm that audio stream is returned after successful retries
 
 @pytest.mark.asyncio
 async def test_main_function_normal_behavior():
     """
-    Test the main function from the tts module to ensure that it can run without throwing an exception
-    when provided with valid data.
+    Test the main function from the tts module to ensure it handles speech synthesis operations as expected.
     """
-    with patch('tts.TextToSpeech.synthesize_speech', return_value=b"some audio data") as mock_synthesize:
+    mock_result = MagicMock()
+    mock_result.reason = speechsdk.ResultReason.SynthesizingAudioCompleted
+    with patch('azure.cognitiveservices.speech.SpeechSynthesizer.speak_ssml_async', return_value=MagicMock(get=MagicMock(return_value=mock_result))) as mock_synthesize:
         try:
-            # 调用tts模块中的main函数
             await tts_module.main()
-            assert mock_synthesize.called, "The synthesize_speech function should have been called."
         except AssertionError as e:
             pytest.fail(f"Unexpected AssertionError thrown: {e}")
         except Exception as e:
             pytest.fail(f"Unexpected exception thrown: {e}")
+        assert mock_synthesize.called, "The synthesize_speech function should have been called."
+
+
 
 @pytest.mark.asyncio
-async def test_missing_api_key():
-    with patch.dict(os.environ, {'AZURE_OPENAI_API_KEY': ''}):
-        with pytest.raises(ValueError, match=r"Necessary configuration missing"):
+async def test_environmental_error():
+    """
+    Ensures that failure to set required environment variables raises an EnvironmentError.
+    """
+    with patch.dict('os.environ', {'AZURE_SPEECH_KEY': '', 'AZURE_SPEECH_REGION': ''}):
+        with pytest.raises(EnvironmentError, match="Environment variables for Azure Speech Service not set"):
             tts_module.TextToSpeech()
 
+
 @pytest.mark.asyncio
-async def test_retry_logic_on_temporary_failures():
-    with patch('httpx.AsyncClient.post', side_effect=httpx.ReadTimeout("timeout")):
-        tts = tts_module.TextToSpeech()
-        with pytest.raises(AssertionError):
-            await tts.synthesize_speech("Hello")
+async def test_convert_to_ssml_already_formatted():
+    """
+    Tests that the convert_to_ssml method returns input text as-it-is if it's already in formatted SSML.
+    """
+    tts = tts_module.TextToSpeech()
+    formatted_ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='some-voice'>Hello, World!</voice></speak>"
+    assert tts.convert_to_ssml(formatted_ssml) == formatted_ssml, "Should return the same SSML formatted text when already properly formatted."
