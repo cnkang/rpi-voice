@@ -114,30 +114,74 @@ async def create_openai_client():
     )
 
 # Function to transcribe speech to text
-async def transcribe_speech_to_text(whisper_instance=None):
+async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = None) -> str:
+    """
+    Transcribe speech to text using WhisperSTT.
+
+    Args:
+        whisper_instance (Optional[WhisperSTT]): An instance of WhisperSTT. If not provided,
+            a new instance will be created.
+
+    Returns:
+        str: The transcribed text.
+
+    Raises:
+        None
+
+    This function records audio using voice activity detection (VAD) and transcribes the audio
+    using WhisperSTT. If whisper_instance is not provided, a new instance of WhisperSTT is created.
+    The transcribed text is returned if the transcription is successful. If an exception occurs,
+    an empty string is returned.
+    """
+    # Create an instance of WhisperSTT if not provided
     whisper = whisper_instance or WhisperSTT()
+    
     try:
+        # Record audio using VAD and transcribe it
         audio = await whisper.record_audio_vad()
         transcription = await whisper.transcribe_audio(audio)
-        logging.info(f"Transcription received: {transcription}")
+        
+        # Log the transcription
+        logging.info("Transcription received: %s", transcription)
+        
+        # Return the transcription
         return transcription
+    
     except Exception as e:
+        # Log the error and return an empty string
         logging.error("Speech-to-text conversion error: %s", e)
         return ""
 
 # Function to interact with OpenAI
 async def interact_with_openai(client, prompts):
-    """Send messages to OpenAI and get the response, raise AssertionError on input errors."""
+    """
+    Send messages to OpenAI and get the response, raise AssertionError on input errors.
+
+    Args:
+        client (AsyncAzureOpenAI): An instance of AsyncAzureOpenAI.
+        prompts (list[dict]): List of dictionaries containing 'role' and 'content'.
+            Each dictionary should have keys 'role' and 'content', where 'role' should be
+            either 'system', 'user', or 'assistant', and 'content' should be a string.
+
+    Returns:
+        str: The response from OpenAI.
+
+    Raises:
+        AssertionError: If prompts are not in the correct format or if any prompt does not have
+            'role' and 'content' keys.
+        AssertionError: If any prompt has an invalid 'role' value.
+        AssertionError: If an error occurs during interaction with OpenAI.
+    """
     global remaining_tokens
     try:
-        # Ensure prompts are serializable; typically, they should be.
+        # Check if prompts are serializable and of the correct format
         if not isinstance(prompts, list) or not all(isinstance(p, dict) for p in prompts):
             error_message = "Prompts are not in the correct format: Should be a list of dictionaries."
             logging.error(error_message)
             logging.error("Current prompts: %s", prompts)
             raise AssertionError(error_message)
 
-        # 检查每个prompt的结构是否合规
+        # Check if each prompt has the correct structure
         required_keys = {'role', 'content'}
         valid_roles = {'system', 'user', 'assistant'}
         for prompt in prompts:
@@ -146,7 +190,9 @@ async def interact_with_openai(client, prompts):
                 logging.error(error_message)
                 raise AssertionError(error_message)
             if prompt['role'] not in valid_roles:
-                error_message = f"Role must be 'system' or 'user' or 'assistant', but got '{prompt['role']}'."
+                error_message = (
+                    f"Role must be 'system' or 'user' or 'assistant', but got '{prompt['role']}'."
+                )
                 logging.error(error_message)
                 raise AssertionError(error_message)
 
@@ -161,6 +207,8 @@ async def interact_with_openai(client, prompts):
             presence_penalty=0
         )
         logging.info("OpenAI response object: %s", response)
+
+        # Process the response and return the result
         if response.choices and response.choices[0]:
             result = response.choices[0].message.content
             remaining_tokens = 128000 - response.usage.total_tokens
@@ -173,7 +221,7 @@ async def interact_with_openai(client, prompts):
         return result
     except Exception as e:
         logging.error("Error interacting with OpenAI: %s", str(e))
-        raise AssertionError(f"Error in the AI response: {str(e)}")
+        raise AssertionError('Error in the AI response: %s', {str(e)}) from e
 
 async def synthesize_and_play_speech(tscript):
     # Create and use instance of TextToSpeech
