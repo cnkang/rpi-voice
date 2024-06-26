@@ -23,4 +23,4 @@ aiofiles>=23.2.1
 pytest>=6.0.0
 pytest-asyncio>=0.15.0
 # Azure Cognitive Services Speech SDK
-azure-cognitiveservices-speech>=1.19.0
+azure-cognitiveservices-speech>=1.38.0
