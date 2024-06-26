@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import re
 from typing import Optional
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
@@ -8,6 +9,8 @@ import httpx
 from tts import TextToSpeech
 from whisper import WhisperSTT
 
+dialogue_history = []
+remaining_tokens = 0
 # Load environment variables
 def initialize_env(load_env: bool = True) -> None:
     """
@@ -45,6 +48,57 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # Retrieve the voice and other configurations from the .env file
 VOICE_NAME = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
 MODEL_NAME = os.getenv("MODEL_NAME")
+
+def strip_tags_and_newlines(xml_str):
+    """
+    Strips all XML tags and newlines from the provided string and returns plain text.
+    
+    Args:
+        xml_str (str): The string containing XML tags.
+
+    Returns:
+        str: The plain text string without any XML tags or newlines.
+    """
+    # First remove all XML/SSML tags
+    no_tags = re.sub(r'<[^>]+>', '', xml_str)
+    # Then remove all newlines
+    clean_text = no_tags.replace('\n', '').replace('\r', '').replace(' ',"")
+    return clean_text
+
+def manage_dialogue_history(user_prompt, assistant_response):
+    """
+    Manages the dialogue history by adding the user prompt and assistant response to the history.
+    Removes the oldest records from the history if the total length of the history exceeds the remaining tokens.
+    
+    Args:
+        user_prompt (str): The user's prompt.
+        assistant_response (str): The assistant's response.
+    """
+    global dialogue_history
+    global remaining_tokens
+    try:
+        plain_text_content = strip_tags_and_newlines(assistant_response['content'])
+        # Update assistant_response with plain text
+        assistant_response['content'] = plain_text_content
+        # Add new user prompt and assistant response to the history
+        logging.info(
+        "Adding to history. User prompt: %s, Assistant response: %s", 
+        user_prompt, assistant_response
+        )
+
+        dialogue_history.append(user_prompt)
+        dialogue_history.append(assistant_response)
+        
+        # Remove the oldest records from the history if the total length exceeds the remaining tokens
+        while remaining_tokens - sum(len(p['content']) for p in dialogue_history) < 200:
+            # Remove the oldest pair of records from the history to maintain a paired logic
+            if len(dialogue_history) > 2:
+                dialogue_history.pop(0)  # Remove the oldest user prompt
+                dialogue_history.pop(0)  # Remove the oldest assistant response
+
+    except Exception as e:
+            logging.error("Error in manage_dialogue_history: %s", e)
+
 class AudioStreamError(Exception):
     """Exception raised when the audio stream is invalid or synthesis fails."""
     pass
@@ -65,6 +119,7 @@ async def transcribe_speech_to_text(whisper_instance=None):
     try:
         audio = await whisper.record_audio_vad()
         transcription = await whisper.transcribe_audio(audio)
+        logging.info(f"Transcription received: {transcription}")
         return transcription
     except Exception as e:
         logging.error("Speech-to-text conversion error: %s", e)
@@ -73,23 +128,25 @@ async def transcribe_speech_to_text(whisper_instance=None):
 # Function to interact with OpenAI
 async def interact_with_openai(client, prompts):
     """Send messages to OpenAI and get the response, raise AssertionError on input errors."""
+    global remaining_tokens
     try:
         # Ensure prompts are serializable; typically, they should be.
         if not isinstance(prompts, list) or not all(isinstance(p, dict) for p in prompts):
             error_message = "Prompts are not in the correct format: Should be a list of dictionaries."
             logging.error(error_message)
+            logging.error("Current prompts: %s", prompts)
             raise AssertionError(error_message)
 
         # 检查每个prompt的结构是否合规
         required_keys = {'role', 'content'}
-        valid_roles = {'system', 'user'}
+        valid_roles = {'system', 'user', 'assistant'}
         for prompt in prompts:
             if not required_keys <= prompt.keys():
                 error_message = "Each prompt should contain 'role' and 'content'."
                 logging.error(error_message)
                 raise AssertionError(error_message)
             if prompt['role'] not in valid_roles:
-                error_message = f"Role must be either 'system' or 'user', but got '{prompt['role']}'."
+                error_message = f"Role must be 'system' or 'user' or 'assistant', but got '{prompt['role']}'."
                 logging.error(error_message)
                 raise AssertionError(error_message)
 
@@ -103,10 +160,15 @@ async def interact_with_openai(client, prompts):
             frequency_penalty=0,
             presence_penalty=0
         )
+        logging.info("OpenAI response object: %s", response)
         if response.choices and response.choices[0]:
             result = response.choices[0].message.content
+            remaining_tokens = 128000 - response.usage.total_tokens
+            logging.debug("Remaining tokens: %s", remaining_tokens)
+            logging.info("Response text: %s", result)
         else:
             result = "No response returned."
+            remaining_tokens = 0
 
         return result
     except Exception as e:
@@ -126,41 +188,61 @@ async def main() -> None:
     """
     Main function to run the program asynchronously.
     """
+    global dialogue_history
     openai_client: Optional[AsyncAzureOpenAI] = await create_openai_client()
     if openai_client is None:
         return
 
-    text_transcript: Optional[str] = await transcribe_speech_to_text()
-    if text_transcript is None:
-        return
+    while True:
+        try:
+            text_transcript: Optional[str] = await transcribe_speech_to_text()
+            if text_transcript is None:
+                return
 
-    prompts = [
-        {
-            "role": "system",
-            "content": (
-                "Please respond naturally in the same language as the user, using human-like "
-                "expressions and emotions. Synthesize the following user's input using SSML markup. "
-                "Start with the appropriate SSML tags including the <speak> root tag with attributes "
-                "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
-                "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
-                "with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
-                "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
-                "important words, and <break> to add realistic pauses. Integrate natural elements like "
-                "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
-                "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
-                "and adaptability, focusing solely on the textual and emotional content without revealing "
-                "your AI nature.".format(VOICE_NAME=VOICE_NAME)
-            ),
-        },
-        {"role": "user", "content": text_transcript},
-    ]
+            system_prompt = {
+                "role": "system",
+                "content": (
+                    f"Please respond naturally in the same language as the user, using human-like "
+                    "expressions and emotions. Synthesize the following user's input using SSML markup. "
+                    "Start with the appropriate SSML tags including the <speak> root tag with attributes "
+                    "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
+                    "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
+                    "with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
+                    "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
+                    "important words, and <break> to add realistic pauses. Integrate natural elements like "
+                    "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
+                    "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
+                    "and adaptability, focusing solely on the textual and emotional content without revealing "
+                    "your AI nature.".format(VOICE_NAME=VOICE_NAME)
+                )
+            }
 
-    response_text: Optional[str] = await interact_with_openai(openai_client, prompts)
-    if response_text is None:
-        return
+            user_prompt = {
+                "role": "user",
+                "content": text_transcript,
+            }
+            if len(dialogue_history) > 0:
+                prompts = [system_prompt] + dialogue_history + [user_prompt]
+            else:
+                prompts = [system_prompt, user_prompt]
+            
+            print(prompts)
+            response_text: Optional[str] = await interact_with_openai(openai_client, prompts)
+            if response_text:
+                assistant_response = {
+                    "role": "assistant",
+                    "content":  response_text,
+                }
+            else:
+                logging.error("No valid response received from OpenAI.")
+                return
 
-    logging.info("OpenAI Response: %s", response_text)
-    await synthesize_and_play_speech(response_text)
+            logging.info("OpenAI Response: %s", response_text)
+            await synthesize_and_play_speech(response_text)
+            manage_dialogue_history(user_prompt, assistant_response)
+            
+        except Exception as e:
+            logging.error("Error in the main loop: %s", e)
 
 if __name__ == "__main__":
     initialize_env()
