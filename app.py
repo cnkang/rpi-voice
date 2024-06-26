@@ -243,54 +243,73 @@ async def main() -> None:
 
     while True:
         try:
+            # Transcribe speech to text
             text_transcript: Optional[str] = await transcribe_speech_to_text()
             if text_transcript is None:
                 return
 
+            # Create prompts for OpenAI
             system_prompt = {
                 "role": "system",
-                "content": (
-                    f"Please respond naturally in the same language as the user, using human-like "
-                    "expressions and emotions. Synthesize the following user's input using SSML markup. "
-                    "Start with the appropriate SSML tags including the <speak> root tag with attributes "
-                    "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
-                    "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
-                    "with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
-                    "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
-                    "important words, and <break> to add realistic pauses. Integrate natural elements like "
-                    "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
-                    "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
-                    "and adaptability, focusing solely on the textual and emotional content without revealing "
-                    "your AI nature.".format(VOICE_NAME=VOICE_NAME)
-                )
+                "content": _create_system_prompt()
             }
-
             user_prompt = {
                 "role": "user",
                 "content": text_transcript,
             }
-            if len(dialogue_history) > 0:
-                prompts = [system_prompt] + dialogue_history + [user_prompt]
-            else:
-                prompts = [system_prompt, user_prompt]
-            
+            prompts = _create_prompts(system_prompt, user_prompt)
             print(prompts)
+
+            # Interact with OpenAI
             response_text: Optional[str] = await interact_with_openai(openai_client, prompts)
-            if response_text:
-                assistant_response = {
-                    "role": "assistant",
-                    "content":  response_text,
-                }
-            else:
+            if response_text is None:
                 logging.error("No valid response received from OpenAI.")
                 return
 
+            # Synthesize and play speech
+            assistant_response = {
+                "role": "assistant",
+                "content": response_text,
+            }
             logging.info("OpenAI Response: %s", response_text)
             await synthesize_and_play_speech(response_text)
+
+            # Manage dialogue history
             manage_dialogue_history(user_prompt, assistant_response)
             
         except Exception as e:
             logging.error("Error in the main loop: %s", e)
+
+
+def _create_system_prompt() -> str:
+    """
+    Create the system prompt for OpenAI.
+    """
+    return (
+        f"Please respond naturally in the same language as the user, using human-like "
+        "expressions and emotions. Synthesize the following user's input using SSML markup. "
+        "Start with the appropriate SSML tags including the <speak> root tag with attributes "
+        "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
+        "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
+        "with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
+        "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
+        "important words, and <break> to add realistic pauses. Integrate natural elements like "
+        "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
+        "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
+        "and adaptability, focusing solely on the textual and emotional content without revealing "
+        "your AI nature.".format(VOICE_NAME=VOICE_NAME)
+    )
+
+
+def _create_prompts(system_prompt: dict, user_prompt: dict) -> list:
+    """
+    Create the prompts for OpenAI.
+    """
+    if len(dialogue_history) > 0:
+        prompts = [system_prompt] + dialogue_history + [user_prompt]
+    else:
+        prompts = [system_prompt, user_prompt]
+    return prompts
 
 if __name__ == "__main__":
     initialize_env()
