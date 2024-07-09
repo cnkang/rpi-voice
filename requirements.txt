@@ -12,5 +12,4 @@ gevent
 greenlet
 pycparser
 six
-websocket
 websocket-client
