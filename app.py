@@ -97,7 +97,7 @@ def manage_dialogue_history(user_prompt, assistant_response):
                 dialogue_history.pop(0)  # Remove the oldest assistant response
 
     except Exception as e:
-            logging.error("Error in manage_dialogue_history: %s", e)
+        logging.error("Error in manage_dialogue_history: %s", e)
 
 class AudioStreamError(Exception):
     """Exception raised when the audio stream is invalid or synthesis fails."""
