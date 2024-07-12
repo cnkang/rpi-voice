@@ -1,14 +1,11 @@
 # -*- coding:utf-8 -*-
-#
-# author: iflytek
-#
+
 import os
 import asyncio
 from voicerecorder import VoiceRecorder
 import websocket
 from dotenv import load_dotenv
 import logging
-import datetime
 import hashlib
 import base64
 import hmac
@@ -30,15 +27,15 @@ class Ws_Param(object):
     """
     The Ws_Param class is used to store the parameters needed for a websocket connection.
     """
-    def __init__(self, AudioFile):
+    def __init__(self, AudioStream):
         """
-        Initialize the parameters for the WebSocket API.
+        Initializes the parameters for the WebSocket API.
         """
         load_dotenv()
         self.APPID = os.getenv('XH_APPID')
         self.APIKey = os.getenv('XH_APIKey')
         self.APISecret = os.getenv('XH_APISecret')
-        self.AudioFile = AudioFile
+        self.AudioStream = AudioStream
         self.CommonArgs = {"app_id": self.APPID}
         self.BusinessArgs = {
             "domain": "iat",
@@ -71,55 +68,82 @@ class Ws_Param(object):
         url = url + '?' + urlencode(v)
         return url
 
-final_result = ''
+class XH_SpeechRecognizer:
+    """
+    A class to perform speech recognition using iFlytek's WebSocket API.
+    """
+    def __init__(self):
+        """
+        Initialize the SpeechRecognizer.
+        """
+        logging.basicConfig(level=logging.INFO)
+        self.final_result = ''
+        self.audio_stream = None
 
-def on_message(ws, message):
-    global final_result
-    try:
-        message = json.loads(message)
-        result = ""
-        code = message["code"]
-        sid = message["sid"]
-        if code != 0:
-            errMsg = message["message"]
-            logging.error("sid:%s call error:%s code is:%s", sid, errMsg, code)
-        else:
-            result = ''.join(cw['w'] for ws in message.get('data', {}).get('result', {}).get('ws', []) for cw in ws.get('cw', []))
-            if message['data']['status'] < STATUS_LAST_FRAME:
-                final_result += result
+    def on_message(self, ws, message):
+        """
+        Handle incoming messages from the WebSocket.
+        """
+        try:
+            message = json.loads(message)
+            result = ""
+            code = message["code"]
+            sid = message["sid"]
+            if code != 0:
+                errMsg = message["message"]
+                logging.error("sid:%s call error:%s code is:%s", sid, errMsg, code)
             else:
-                final_result += result
-                logging.debug("Recognized text: %s", final_result)
-                return final_result
-    except Exception as e:
-        logging.error("receive msg,but parse exception: %s", e)
+                result = ''.join(cw['w'] for ws in message.get('data', {}).get('result', {}).get('ws', []) for cw in ws.get('cw', []))
+                if message['data']['status'] < STATUS_LAST_FRAME:
+                    self.final_result += result
+                else:
+                    self.final_result += result
+                    logging.info("Recognized text: %s", self.final_result)
+            return self.final_result
+        except Exception as e:
+            logging.error("receive msg,but parse exception: %s", e)
+            return None
 
-def on_error(ws, error):
-    logging.error("### error ###: %s" % error)
+    def on_error(self, ws, error):
+        """
+        Handle errors in the WebSocket.
+        """
+        logging.error("### error ###: %s",error)
 
-def on_close(ws, close_status_code, close_msg):
-    logging.debug("### closed ###")
-    logging.debug("WebSocket closed with status code: %s", close_status_code)
-    logging.debug("Close message: %s", close_msg)
+    def on_close(self, ws, close_status_code, close_msg):
+        """
+        Handle the WebSocket closure.
+        """
+        logging.debug("### closed ###")
+        logging.debug("WebSocket closed with status code: %s", close_status_code)
+        logging.debug("Close message: %s", close_msg)
+        self.audio_stream.close()
+    def on_open(self, ws, wsParam):
+        """
+        Handle the WebSocket opening and start sending data.
+        """
+        def run(*args):
+            frameSize = 8000  # Frame size
+            intervel = 0.04  # Interval in seconds
+            status = STATUS_FIRST_FRAME  # Start with the first frame
 
-def on_open(ws, wsParam):
-    def run(*args):
-        frameSize = 8000
-        intervel = 0.04
-        status = STATUS_FIRST_FRAME  # Start with the first frame
-        with open(wsParam.AudioFile, "rb") as fp:
+            wsParam.AudioStream.seek(0)  # Move to the start of the stream
+
             while True:
-                buf = fp.read(frameSize)
+                buf = wsParam.AudioStream.read(frameSize)
+                logging.debug('Buffer type: %s', type(buf))  # 这将显示buf的数据类型
+
                 if not buf:
                     status = STATUS_LAST_FRAME  # No more data, mark last frame
-                
+
                 data = {
                     "status": status,
                     "format": "audio/L16;rate=16000",
                     "audio": base64.b64encode(buf).decode('utf-8'),
                     "encoding": "raw"
                 }
-                
+
+                # Send data based on the frame status
                 if status == STATUS_FIRST_FRAME:
                     d = {"common": wsParam.CommonArgs, "business": wsParam.BusinessArgs, "data": data}
                     ws.send(json.dumps(d))
@@ -130,35 +154,42 @@ def on_open(ws, wsParam):
                 elif status == STATUS_LAST_FRAME:
                     d = {"data": data}
                     ws.send(json.dumps(d))
-                    time.sleep(1)  # Wait a second to ensure last frame is processed
+                    time.sleep(1)  # Wait a second to ensure the last frame is processed
                     ws.close()
                     break
 
                 time.sleep(intervel)
 
-    thread.start_new_thread(run, ())
+        thread.start_new_thread(run, ())
+    
+    async def run_recognition(self):
+        """
+        Start the speech recognition.
+        """
+        voice_recorder = VoiceRecorder()
+        try:
+            # Record the audio data
+            audio_data = await voice_recorder.record_audio_vad()
+            # Save the recorded audio to a BytesIO stream
+            self.audio_stream = voice_recorder.array_to_pcm_bytes(audio_data)
 
-async def main():
-    voice_recorder = VoiceRecorder()
-    try:
-        # Record the audio data
-        audio_data = await voice_recorder.record_audio_vad()
-        # Save the recorded audio to a temporary PCM file
-        pcm_file_path = voice_recorder.array_to_pcm_bytes(audio_data)
+            # Prepare WebSocket parameters
+            wsParam = Ws_Param(AudioStream=self.audio_stream)
+            wsUrl = wsParam.create_url()
 
-        
-        # Prepare WebSocket parameters
-        wsParam = Ws_Param(AudioFile=pcm_file_path)
-        wsUrl = wsParam.create_url()
-
-        # WebSocket event handlers
-        ws = websocket.WebSocketApp(wsUrl, on_open=lambda ws: on_open(ws, wsParam), on_message=on_message, on_error=on_error, on_close=on_close)
-        ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
-    except Exception as e:
-        logging.error("An error occurred: %s", e)
-        if os.path.exists(pcm_file_path):
-            os.remove(pcm_file_path)
-            logging.info("Temporary file removed: %s", pcm_file_path)
+            # WebSocket event handlers
+            ws = websocket.WebSocketApp(wsUrl,
+                                        on_open=lambda ws: self.on_open(ws, wsParam),
+                                        on_message=self.on_message,
+                                        on_error=self.on_error,
+                                        on_close=self.on_close)
+            ws.run_forever(sslopt={"cert_reqs": ssl.CERT_NONE})
+        except Exception as e:
+            logging.error("An error occurred: %s", e)
+            if self.audio_stream:
+                self.audio_stream.close()
+                logging.debug("Stream has been closed")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    recognizer = XH_SpeechRecognizer()
+    asyncio.run(recognizer.run_recognition())

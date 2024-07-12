@@ -1,9 +1,7 @@
 import asyncio
-import tempfile
-import uuid
-import os
+import io
 import logging
-from typing import Optional, List
+from typing import List
 
 import sounddevice as sd
 import webrtcvad
@@ -14,29 +12,65 @@ logging.basicConfig(
 )
 
 class VoiceRecorder:
-    def __init__(self) -> None:
-        self.sample_rate: int = 16000
-        self.stop_event: asyncio.Event = asyncio.Event()
+    """
+    Class for recording voice and processing audio frames.
+    """
 
-    def array_to_pcm_bytes(self, audio_frames: List[bytes]) -> str:
-        unique_filename = str(uuid.uuid4())
-        tmp_audio_file_path = os.path.join(
-            tempfile.gettempdir(), f"temp_audio_{unique_filename}.pcm"
-        )
+    def __init__(self) -> None:
+        """
+        Initialize the VoiceRecorder object with the default audio sample rate of 16,000.
+        """
+        self.sample_rate: int = 16000
+
+    def array_to_pcm_bytes(self, audio_frames: List[bytes]) -> io.BytesIO:
+        """
+        Convert a list of audio frames into a single PCM byte stream.
+
+        This function takes a list of audio frames (each as bytes) and concatenates
+        them into a single byte stream. This is useful for converting raw audio frames
+        into a format that can be processed by audio analysis tools or saved to disk.
+
+        Args:
+            audio_frames: A list of byte strings, each representing an audio frame.
+
+        Returns:
+            A BytesIO object containing the concatenated PCM byte stream of the audio frames.
+
+        Raises:
+            Exception: If an error occurs during processing.
+        """
+        audio_buffer = io.BytesIO()  # Create a new BytesIO object to hold the PCM data.
         try:
-            with open(tmp_audio_file_path, 'wb') as audio_file:
-                for frame in audio_frames:
-                    audio_file.write(frame)
-            return tmp_audio_file_path
+            for frame in audio_frames:
+                audio_buffer.write(frame)  # Write each frame to the buffer.
+            audio_buffer.seek(0)  # Reset buffer position to the start for reading.
+            return audio_buffer
         except Exception as e:
-            logging.error("Failed to write audio to file: %s", str(e))
-            raise
+            logging.error("Failed to write audio to buffer: %s", str(e))  # Log any errors.
+            raise  # Re-raise the exception to handle it further up the call stack.
 
     async def record_audio_vad(
         self,
         max_duration: float = 60.0,
         max_silence_duration: float = 1.0
     ) -> List[bytes]:
+        """
+        Record audio until either the maximum duration or silence duration is exceeded.
+
+        This function records audio frames using the WebRTC VAD library and returns a list of
+        the recorded frames as byte strings. The recording continues until either the maximum
+        duration (in seconds) or the maximum silence duration (in seconds) is exceeded.
+
+        Args:
+            max_duration: The maximum duration of the recording in seconds. Defaults to 60.0.
+            max_silence_duration: The maximum silence duration in seconds. Defaults to 1.0.
+
+        Returns:
+            A list of byte strings, each representing an audio frame.
+
+        Raises:
+            AssertionError: If an error occurs during recording.
+        """
         vad = webrtcvad.Vad(mode=3)
         logging.info("Start recording...")
         recorded_frames: List[bytes] = []
@@ -45,6 +79,13 @@ class VoiceRecorder:
         recording_active: bool = True
 
         def update_recording_status(frame_data: bytes, is_speech: bool) -> None:
+            """
+            Update the recording status based on the current frame's speech status.
+
+            Args:
+                frame_data: The current audio frame as a byte string.
+                is_speech: A boolean indicating whether the current frame contains speech.
+            """
             nonlocal current_silence_duration, recording_active
             if not is_speech:
                 current_silence_duration += 1
@@ -60,8 +101,21 @@ class VoiceRecorder:
                 recording_active = False
 
         def process_frame(frame_data: bytes) -> None:
+            """
+            Process a single audio frame.
+
+            Args:
+                frame_data: The current audio frame as a byte string.
+
+            This function takes in an audio frame as a byte string and
+            processes it by detecting whether it contains speech or not. It
+            then updates the recording status based on the speech status
+            of the frame.
+            """
             nonlocal recording_active
+            # Detect whether the frame contains speech or not
             is_speech = vad.is_speech(frame_data, self.sample_rate)
+            # Update the recording status based on the speech status of the frame
             update_recording_status(frame_data, is_speech)
 
         try:
@@ -80,12 +134,24 @@ class VoiceRecorder:
         return recorded_frames
 
 async def main():
-    voice_recorder = VoiceRecorder()
+    """
+    Main function to initiate voice recording process and handle the audio data.
+
+    This function asynchronously records audio via the VoiceRecorder's VAD (Voice Activity Detection)
+    mechanism, converts the recorded audio frames into PCM byte format, and logs the completion
+    with the total byte size of the recorded audio.
+    """
+    voice_recorder = VoiceRecorder()  # Initialize the VoiceRecorder object
+
     try:
+        # Record audio with voice activity detection
         audio_frames = await voice_recorder.record_audio_vad()
-        pcm_file_path = voice_recorder.array_to_pcm_bytes(audio_frames)
-        logging.info("Audio saved to %s", pcm_file_path)
+        # Convert the recorded audio frames to PCM bytes
+        audio_buffer = voice_recorder.array_to_pcm_bytes(audio_frames)
+        # Log the completion of the recording and the total size of the audio buffer
+        logging.info("Audio recording completed, total bytes: %d", audio_buffer.getbuffer().nbytes)
     except Exception as e:
+        # Log any exceptions that occur during the recording process
         logging.error("An error occurred: %s", str(e))
 
 if __name__ == "__main__":
