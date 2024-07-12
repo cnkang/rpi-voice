@@ -30,13 +30,14 @@ class Ws_Param(object):
     """
     The Ws_Param class is used to store the parameters needed for a websocket connection.
     """
-    def __init__(self, APPID, APIKey, APISecret, AudioFile):
+    def __init__(self, AudioFile):
         """
         Initialize the parameters for the WebSocket API.
         """
-        self.APPID = APPID
-        self.APIKey = APIKey
-        self.APISecret = APISecret
+        load_dotenv()
+        self.APPID = os.getenv('XH_APPID')
+        self.APIKey = os.getenv('XH_APIKey')
+        self.APISecret = os.getenv('XH_APISecret')
         self.AudioFile = AudioFile
         self.CommonArgs = {"app_id": self.APPID}
         self.BusinessArgs = {
@@ -81,14 +82,15 @@ def on_message(ws, message):
         sid = message["sid"]
         if code != 0:
             errMsg = message["message"]
-            logging.error("sid:%s call error:%s code is:%s" % (sid, errMsg, code))
+            logging.error("sid:%s call error:%s code is:%s", sid, errMsg, code)
         else:
             result = ''.join(cw['w'] for ws in message.get('data', {}).get('result', {}).get('ws', []) for cw in ws.get('cw', []))
             if message['data']['status'] < STATUS_LAST_FRAME:
                 final_result += result
             else:
                 final_result += result
-                print(final_result)
+                logging.debug("Recognized text: %s", final_result)
+                return final_result
     except Exception as e:
         logging.error("receive msg,but parse exception: %s", e)
 
@@ -143,16 +145,10 @@ async def main():
         audio_data = await voice_recorder.record_audio_vad()
         # Save the recorded audio to a temporary PCM file
         pcm_file_path = voice_recorder.array_to_pcm_bytes(audio_data)
-        logging.info("Audio saved to %s", pcm_file_path)
-        
-        # Loading configuration from environment variables
-        load_dotenv()
-        app_ID = os.getenv('XH_APPID')
-        api_Secret = os.getenv('XH_APISecret')
-        api_Key = os.getenv('XH_APIKey')
 
+        
         # Prepare WebSocket parameters
-        wsParam = Ws_Param(APPID=app_ID, APISecret=api_Secret, APIKey=api_Key, AudioFile=pcm_file_path)
+        wsParam = Ws_Param(AudioFile=pcm_file_path)
         wsUrl = wsParam.create_url()
 
         # WebSocket event handlers
