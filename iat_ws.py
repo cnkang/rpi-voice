@@ -48,23 +48,41 @@ class Ws_Param(object):
     def create_url(self):
         """
         Generate the URL for websocket connection.
+
+        This method generates the URL for the websocket connection by appending the necessary
+        query parameters to the base URL. The query parameters include the authorization token,
+        the date, and the host.
+
+        Returns:
+            str: The generated URL for the websocket connection.
         """
+        # Set the base URL for the websocket connection
         url = 'wss://iat-api.xfyun.cn/v2/iat'
+
+        # Get the current date and time
         now = datetime.now()
         date = format_date_time(mktime(now.timetuple()))
-        signature_origin = "host: iat-api.xfyun.cn\n"
-        signature_origin += "date: " + date + "\n"
-        signature_origin += "GET /v2/iat HTTP/1.1"
+
+        # Generate the signature for the authorization token
+        signature_origin = "host: iat-api.xfyun.cn\n"  # Host header
+        signature_origin += "date: " + date + "\n"  # Date header
+        signature_origin += "GET /v2/iat HTTP/1.1"  # Request line
         signature_sha = hmac.new(self.APISecret.encode('utf-8'), signature_origin.encode('utf-8'), digestmod=hashlib.sha256).digest()
         signature_sha = base64.b64encode(signature_sha).decode(encoding='utf-8')
-        authorization_origin = "api_key=\"%s\", algorithm=\"%s\", headers=\"%s\", signature=\"%s\"" % (
+
+        # Generate the authorization token
+        authorization_origin = "api_key=\"{}\", algorithm=\"{}\", headers=\"{}\", signature=\"{}\"".format(
             self.APIKey, "hmac-sha256", "host date request-line", signature_sha)
         authorization = base64.b64encode(authorization_origin.encode('utf-8')).decode(encoding='utf-8')
+
+        # Create the query parameters dictionary
         v = {
             "authorization": authorization,
             "date": date,
             "host": "iat-api.xfyun.cn"
         }
+
+        # Append the query parameters to the base URL and return the generated URL
         url = url + '?' + urlencode(v)
         return url
 
@@ -121,8 +139,19 @@ class XH_SpeechRecognizer:
     def on_open(self, ws, wsParam):
         """
         Handle the WebSocket opening and start sending data.
+        Start sending audio data through the WebSocket.
         """
         def run(*args):
+            """
+            Continuously read audio data from the stream and send it through the WebSocket.
+
+            This function continuously reads frames from the audio stream and sends them through the WebSocket
+            until the stream is exhausted. It handles different frame statuses and sends the data accordingly.
+
+            Args:
+                args: Variable length argument list.
+
+            """
             frameSize = 8000  # Frame size
             intervel = 0.04  # Interval in seconds
             status = STATUS_FIRST_FRAME  # Start with the first frame
@@ -131,7 +160,7 @@ class XH_SpeechRecognizer:
 
             while True:
                 buf = wsParam.AudioStream.read(frameSize)
-                logging.debug('Buffer type: %s', type(buf))  # 这将显示buf的数据类型
+                logging.debug('Buffer type: %s', type(buf))  # This will show the data type of buf
 
                 if not buf:
                     status = STATUS_LAST_FRAME  # No more data, mark last frame
