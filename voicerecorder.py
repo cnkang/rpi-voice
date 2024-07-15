@@ -2,9 +2,11 @@ import asyncio
 import io
 import logging
 from typing import List
+import wave
 
 import sounddevice as sd
 import webrtcvad
+
 
 # Configure logging
 logging.basicConfig(
@@ -48,7 +50,28 @@ class VoiceRecorder:
         except Exception as e:
             logging.error("Failed to write audio to buffer: %s", str(e))  # Log any errors.
             raise  # Re-raise the exception to handle it further up the call stack.
+    def array_to_wav_bytes(self, audio_frames: List[bytes]) -> io.BytesIO:
+        """
+        Convert a list of audio frames into a single WAV byte stream.
 
+        Args:
+            audio_frames (List[bytes]): A list of byte strings, each representing an audio frame.
+
+        Returns:
+            io.BytesIO: A BytesIO object containing the concatenated WAV byte stream of the audio frames.
+        """
+        wav_buffer = io.BytesIO()
+        with wave.open(wav_buffer, "wb") as wav_file:
+            wav_file.setnchannels(1)  # mono
+            wav_file.setsampwidth(2)  # byte width of 2 (16 bits)
+            wav_file.setframerate(self.sample_rate)
+
+            # Write frames, assuming audio frames are byte data of PCM samples
+            for frame in audio_frames:
+                wav_file.writeframes(frame)
+
+        wav_buffer.seek(0)
+        return wav_buffer
     async def record_audio_vad(
         self,
         max_duration: float = 60.0,
