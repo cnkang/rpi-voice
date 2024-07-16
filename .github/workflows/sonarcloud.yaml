@@ -63,11 +63,11 @@ jobs:
           echo $UserID
           echo $GroupID
           echo "AAA"
-          sudo mkdir -p /run/user/$UserID/pulse
+          sudo mkdir -p /run/user/$UserID/pulse/native
           echo "BBB"
-          sudo chown -R $UserID:$GroupID /run/user/1001
+          sudo chown -R $UserID:$GroupID /run/user/$UserID/pulse
           echo "CCC"
-          sudo chmod -R 666 /run/user/$UserID/
+          sudo chmod -R 666 /run/user/$UserID/pulse
           echo "DDD"
           pulseaudio --check
           pactl info
