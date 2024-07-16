@@ -58,9 +58,9 @@ jobs:
       - name: Update user permissions and verify audio configuration
         run: |
           sudo usermod -aG audio $USER
-          UID=$(id -u)
-          GID=$(id -g)
-          sudo chown -R $UID:$GID /run/user/
+          UserID=$(id -u)
+          GroupID=$(id -g)
+          sudo chown -R $UserID:$GroupID /run/user/
           pulseaudio --check
           pactl info
       - name: Configure ALSA to use PulseAudio
