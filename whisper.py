@@ -14,13 +14,13 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 class WhisperSTT:
     def __init__(self) -> None:
         load_dotenv()
-        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        assert azure_endpoint, "Environment variable 'AZURE_OPENAI_ENDPOINT' cannot be empty"
-        assert api_key, "Environment variable 'AZURE_OPENAI_API_KEY' cannot be empty"
+        self.api_key = os.getenv("AZURE_OPENAI_API_KEY",None)
+        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT",None)
+        if not self.api_key or not self.endpoint:
+            raise EnvironmentError("Environment variables for Azure OpenAI Service not set")
         self.client = AsyncAzureOpenAI(
-            azure_endpoint=azure_endpoint,
-            api_key=api_key,
+            azure_endpoint=self.endpoint,
+            api_key=self.api_key,
             api_version=os.getenv("AZURE_API_VERSION", "2024-05-01-preview"),
             http_client=httpx.AsyncClient(http2=True)
         )
