@@ -49,19 +49,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
           sudo chown -R $USER:$USER /var/cache/apt/archives/
-          pulseaudio --start
-          pactl load-module module-null-sink sink_name=virtual_speaker
-          pactl set-default-sink virtual_speaker
+          sudo pulseaudio --start
+          sudo pactl load-module module-null-sink sink_name=virtual_speaker
+          sudo pactl set-default-sink virtual_speaker
           pip install -r requirements.txt
           pip install coverage
   
-      - name: Modify user permissions and check audio
+      - name: Update user permissions and verify audio configuration
         run: |
           sudo usermod -aG audio $USER
-          sudo chown -R {id -u}:{id -g} /run/user/
+          sudo chown -R $(id -u):$(id -g) /run/user/
           sudo pulseaudio --check
           sudo pactl info
-  
       - name: Configure ALSA to use PulseAudio
         run: |
           echo 'pcm.!default { type pulse }' >> ~/.asoundrc
