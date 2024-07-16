@@ -108,9 +108,8 @@ jobs:
           WHISPER_MODEL_NAME: ${{ secrets.WHISPER_MODEL_NAME }}
           TTS_MODEL_NAME: ${{ secrets.TTS_MODEL_NAME }}
           TTS_VOICE_NAME: ${{ secrets.TTS_VOICE_NAME }}
-        run: sudo -u githubuser tox -e py312
-        env:
           USER: githubuser
+        run: sudo -u githubuser tox -e py312
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
