@@ -49,28 +49,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
           sudo chown -R $USER:$USER /var/cache/apt/archives/
-          UserID=$(id -u)
-          GroupID=$(id -g)
-          echo $UserID
-          echo $GroupID
-          echo "AAA"
-          sudo mkdir -p /run/user/$UserID/pulse/native
-          echo "BBB"
-          sudo chown -R $UserID:$GroupID /run/user/$UserID/pulse
-          echo "CCC"
-          sudo chmod -R 666 /run/user/$UserID/pulse
-          echo "DDD"
           pulseaudio --start
           pactl load-module module-null-sink sink_name=virtual_speaker
           pactl set-default-sink virtual_speaker
           pip install -r requirements.txt
           pip install coverage
   
-      - name: Update user permissions and verify audio configuration
+      - name: Modify user permissions and check audio
         run: |
-          sudo usermod -aG audio $USER          
+          sudo usermod -aG audio $USER
+          sudo chmod 666 /run/user/1001/pulse/native
           pulseaudio --check
           pactl info
+  
       - name: Configure ALSA to use PulseAudio
         run: |
           echo 'pcm.!default { type pulse }' >> ~/.asoundrc
@@ -88,7 +79,7 @@ jobs:
         run: pip install tox
       - name: Run tox
         env:
-          PULSE_SERVER: unix:/run/user/$UserID/pulse/native
+          PULSE_SERVER: unix:/run/user/1001/pulse/native
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
