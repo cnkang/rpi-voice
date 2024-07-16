@@ -49,18 +49,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
           sudo chown -R $USER:$USER /var/cache/apt/archives/
-          sudo pulseaudio --start
-          sudo pactl load-module module-null-sink sink_name=virtual_speaker
-          sudo pactl set-default-sink virtual_speaker
+          pulseaudio --start
+          pactl load-module module-null-sink sink_name=virtual_speaker
+          pactl set-default-sink virtual_speaker
           pip install -r requirements.txt
           pip install coverage
   
       - name: Update user permissions and verify audio configuration
         run: |
           sudo usermod -aG audio $USER
-          sudo chown -R $(id -u):$(id -g) /run/user/
-          sudo pulseaudio --check
-          sudo pactl info
+          UID=$(id -u)
+          GID=$(id -g)
+          sudo chown -R $UID:$GID /run/user/
+          pulseaudio --check
+          pactl info
       - name: Configure ALSA to use PulseAudio
         run: |
           echo 'pcm.!default { type pulse }' >> ~/.asoundrc
@@ -68,11 +70,11 @@ jobs:
   
       - name: Test simplified PulseAudio setup
         run: |
-          sudo pulseaudio --kill
-          sudo pulseaudio --start --log-target=syslog
-          sudo pactl load-module module-null-sink
-          sudo pactl set-default-sink null
-          sudo pactl info
+          pulseaudio --kill
+          pulseaudio --start --log-target=syslog
+          pactl load-module module-null-sink
+          pactl set-default-sink null
+          pactl info
 
       - name: Install tox and any other packages
         run: pip install tox
