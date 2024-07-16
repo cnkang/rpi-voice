@@ -56,7 +56,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
           sudo chown -R githubuser:githubuser /var/cache/apt/archives/
-          sudo -u githubuser mkdir -p /run/user/$(id -u githubuser)/pulse
+          sudo mkdir -p /run/user/$(id -u githubuser)/pulse
+          sudo chown -R githubuser:githubuser /run/user/$(id -u githubuser)/pulse
           sudo -u githubuser pulseaudio --start
           PULSE_RUNTIME_PATH="/run/user/$(id -u githubuser)/pulse"
           if [ -d "$PULSE_RUNTIME_PATH" ]; then
@@ -97,7 +98,7 @@ jobs:
 
       - name: Run tox
         env:
-          PULSE_SERVER: /run/user/$(id -u githubuser)/pulse/native
+          PULSE_SERVER: unix:/run/user/$(id -u githubuser)/pulse/native
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
