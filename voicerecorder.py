@@ -2,7 +2,7 @@ import asyncio
 import io
 import time
 import logging
-from typing import List
+from typing import List, Optional
 import wave
 
 import sounddevice as sd
@@ -50,8 +50,7 @@ class VoiceRecorder:
             ) as stream:
                 while True:
                     # Read audio data in chunks of 20ms
-                    audio_data = stream.read(int(self.sample_rate * 0.02),.exception=True)
-                    
+                    audio_data = stream.read(int(self.sample_rate * 0.02), exception=True)
                     # Apply VAD to the audio data
                     if vad.is_speech(audio_data.data, sample_rate=self.sample_rate):
                         # Append speech frames to the list
