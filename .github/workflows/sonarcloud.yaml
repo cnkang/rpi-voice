@@ -57,7 +57,8 @@ jobs:
           sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
           sudo chown -R githubuser:githubuser /var/cache/apt/archives/
           sudo mkdir -p /run/user/$(id -u githubuser)/pulse
-          sudo chown -R githubuser:githubuser /run/user/$(id -u githubuser)/pulse
+          sudo chown -R githubuser:githubuser /run/user/$(id -u githubuser)
+          sudo chown -R githubuser:githubuser /run/user/1001
           sudo -u githubuser pulseaudio --start
           PULSE_RUNTIME_PATH="/run/user/$(id -u githubuser)/pulse"
           if [ -d "$PULSE_RUNTIME_PATH" ]; then
