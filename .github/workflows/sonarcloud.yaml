@@ -62,7 +62,6 @@ jobs:
           GroupID=$(id -g)
           echo $UserID
           echo $GroupID
-          sudo mkdir -p /run/user/$UserID/pulse/native
           sudo chown -R $UserID:$GroupID /run/user/1001
           sudo chmod -R 666 /run/user/$UserID/
           pulseaudio --check
