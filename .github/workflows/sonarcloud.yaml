@@ -59,7 +59,7 @@ jobs:
           sudo mkdir -p /run/user/$(id -u githubuser)/pulse
           sudo chown -R githubuser:githubuser /run/user/$(id -u githubuser)
           sudo chown -R githubuser:githubuser /run/user/1001
-          sudo -u githubuser pulseaudio --start
+          sudo  pulseaudio --start
           PULSE_RUNTIME_PATH="/run/user/$(id -u githubuser)/pulse"
           if [ -d "$PULSE_RUNTIME_PATH" ]; then
                 chmod 666 $PULSE_RUNTIME_PATH/native
