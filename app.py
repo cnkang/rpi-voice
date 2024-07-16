@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 import httpx
 from tts import TextToSpeech
-from whisper import WhisperSTT
+from whisper import WhisperSTT,save_temp_wav_file
+import io
+import tempfile
+import shutil
 
 dialogue_history = []
 remaining_tokens = 0
@@ -137,20 +140,20 @@ async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = Non
     whisper = whisper_instance or WhisperSTT()
     
     try:
-        # Record audio using VAD and transcribe it
-        audio = await whisper.record_audio_vad()
-        transcription = await whisper.transcribe_audio(audio)
-        
-        # Log the transcription
+        from voicerecorder import VoiceRecorder
+        voice_recorder = VoiceRecorder()
+        audio_frames = await voice_recorder.record_audio_vad()
+        wav_audio_buffer = voice_recorder.array_to_wav_bytes(audio_frames)
+        temp_wav_path = save_temp_wav_file(wav_audio_buffer)
+
+        transcription = await whisper.transcribe_audio(temp_wav_path)
         logging.info("Transcription received: %s", transcription)
-        
-        # Return the transcription
+        os.remove(temp_wav_path)
         return transcription
-    
     except Exception as e:
-        # Log the error and return an empty string
         logging.error("Speech-to-text conversion error: %s", e)
         return ""
+
 
 # Function to interact with OpenAI
 async def interact_with_openai(client, prompts):

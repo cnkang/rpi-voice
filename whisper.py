@@ -38,9 +38,21 @@ class WhisperSTT:
             return "Failed to transcribe audio"
 
 def save_temp_wav_file(audio_stream: io.BytesIO) -> str:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+    """
+    Save the audio stream to a temporary WAV file.
+
+    Args:
+        audio_stream (io.BytesIO): The audio stream to be saved.
+
+    Returns:
+        str: The path of the temporary WAV file.
+    """
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav", mode="wb") as tmp_file:
+        # Copy the audio stream to the temporary file
         shutil.copyfileobj(audio_stream, tmp_file)
-        return tmp_file.name
+        # Return the path of the temporary file
+        tmp_file_path = tmp_file.name  # type: ignore
+        return tmp_file_path
 
 async def main():
     from voicerecorder import VoiceRecorder
