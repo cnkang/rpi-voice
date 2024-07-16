@@ -58,7 +58,7 @@ jobs:
       - name: Modify user permissions and check audio
         run: |
           sudo usermod -aG audio $USER
-          sudo chmod -R 666 /run/user/
+          sudo chown -R {id -u}:{id -g} /run/user/
           sudo pulseaudio --check
           sudo pactl info
   
@@ -69,11 +69,11 @@ jobs:
   
       - name: Test simplified PulseAudio setup
         run: |
-          pulseaudio --kill
-          pulseaudio --start --log-target=syslog
-          pactl load-module module-null-sink
-          pactl set-default-sink null
-          pactl info
+          sudo pulseaudio --kill
+          sudo pulseaudio --start --log-target=syslog
+          sudo pactl load-module module-null-sink
+          sudo pactl set-default-sink null
+          sudo pactl info
 
       - name: Install tox and any other packages
         run: pip install tox
