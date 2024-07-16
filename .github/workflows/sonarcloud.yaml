@@ -62,9 +62,9 @@ jobs:
           GroupID=$(id -g)
           echo $UserID
           echo $GroupID
-          mkdir -p /run/user/$UserID/pulse/native
+          sudo mkdir -p /run/user/$UserID/pulse/native
           sudo chown -R $UserID:$GroupID /run/user/1001
-          sudo chmod -R 666 /run/user/1001
+          sudo chmod -R 666 /run/user/$UserID/
           pulseaudio --check
           pactl info
       - name: Configure ALSA to use PulseAudio
@@ -84,7 +84,7 @@ jobs:
         run: pip install tox
       - name: Run tox
         env:
-          PULSE_SERVER: unix:/run/user/1001/pulse/native
+          PULSE_SERVER: unix:/run/user/$UserID/pulse/native
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
