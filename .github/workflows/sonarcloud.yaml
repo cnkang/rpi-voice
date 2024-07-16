@@ -62,8 +62,13 @@ jobs:
           GroupID=$(id -g)
           echo $UserID
           echo $GroupID
+          echo "AAA"
+          sudo mkdir -p /run/user/$UserID/pulse
+          echo "BBB"
           sudo chown -R $UserID:$GroupID /run/user/1001
+          echo "CCC"
           sudo chmod -R 666 /run/user/$UserID/
+          echo "DDD"
           pulseaudio --check
           pactl info
       - name: Configure ALSA to use PulseAudio
