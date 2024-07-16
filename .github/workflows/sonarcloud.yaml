@@ -58,9 +58,9 @@ jobs:
       - name: Modify user permissions and check audio
         run: |
           sudo usermod -aG audio $USER
-          sudo chmod -R 666 /run/user/1001
-          pulseaudio --check
-          pactl info
+          sudo chmod -R 666 /run/user/
+          sudo pulseaudio --check
+          sudo pactl info
   
       - name: Configure ALSA to use PulseAudio
         run: |
