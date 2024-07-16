@@ -51,6 +51,14 @@ jobs:
           sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
           sudo chown -R $USER:$USER /var/cache/apt/archives/
           pulseaudio --start
+          PULSE_RUNTIME_PATH=$(pulseaudio --dump-conf | grep '^runtime-dir' | cut -d= -f2)/pulse
+          if [ -d "$PULSE_RUNTIME_PATH" ]; then
+            sudo chmod 666 $PULSE_RUNTIME_PATH/native
+            pulseaudio --check
+            pactl info
+          else
+            echo "PulseAudio runtime path does not exist: $PULSE_RUNTIME_PATH"
+          fi
           pactl load-module module-null-sink sink_name=virtual_speaker
           pactl set-default-sink virtual_speaker
           pip install -r requirements.txt
@@ -59,7 +67,8 @@ jobs:
       - name: Modify user permissions and check audio
         run: |
           sudo usermod -aG audio $USER
-          sudo chmod 666 /run/user/1001/pulse/native
+          PULSE_RUNTIME_PATH=$(pulseaudio --dump-conf | grep '^runtime-dir' | cut -d= -f2)
+          echo "PulseAudio Runtime Path: $PULSE_RUNTIME_PATH"
           pulseaudio --check
           pactl info
   
