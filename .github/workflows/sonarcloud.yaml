@@ -20,15 +20,21 @@ jobs:
         with:
           python-version: 3.12
 
+      - name: Create a new user
+        run: |
+          sudo useradd -m githubuser
+          sudo chown -R githubuser:githubuser /home/githubuser
+
       - name: Set permission for apt cache dir
         run: |
-              sudo chown -R $USER:$USER /var/cache/apt/
-  
-  
+          sudo chown -R githubuser:githubuser /var/cache/apt/
+
       - name: Get current date
         id: date
         run: echo "date=$(date +%Y-%m-%d)" >> $GITHUB_ENV
-  
+        env:
+          USER: githubuser
+
       - name: Cache Python packages
         uses: actions/cache@v4
         with:
@@ -36,7 +42,7 @@ jobs:
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
-  
+
       - name: Cache APT packages
         uses: actions/cache@v4
         with:
@@ -44,51 +50,54 @@ jobs:
           key: ${{ runner.os }}-apt-${{ env.date }}
           restore-keys: |
             ${{ runner.os }}-apt-
-  
+
       - name: Install dependencies and PulseAudio
         run: |
           sudo apt-get update
           sudo apt-get install -y pulseaudio ffmpeg portaudio19-dev
-          sudo chown -R $USER:$USER /var/cache/apt/archives/
-          mkdir -p /run/user/$(id -u)/pulse
-          pulseaudio --start
-          PULSE_RUNTIME_PATH="/run/user/$(id -u)/pulse"
+          sudo chown -R githubuser:githubuser /var/cache/apt/archives/
+          sudo -u githubuser mkdir -p /run/user/$(id -u githubuser)/pulse
+          sudo -u githubuser pulseaudio --start
+          PULSE_RUNTIME_PATH="/run/user/$(id -u githubuser)/pulse"
           if [ -d "$PULSE_RUNTIME_PATH" ]; then
                 chmod 666 $PULSE_RUNTIME_PATH/native
-                pulseaudio --check
-                pactl info
+                sudo -u githubuser pulseaudio --check
+                sudo -u githubuser pactl info
               else
                 echo "PulseAudio runtime path does not exist: $PULSE_RUNTIME_PATH"
               fi
-          pactl load-module module-null-sink sink_name=virtual_speaker
-          pactl set-default-sink virtual_speaker
-          pip install -r requirements.txt
-          pip install coverage
-  
-      - name: Modify user permissions and check audio
-        run: |
-          sudo usermod -aG audio $USER
-          pulseaudio --check
-          pactl info
-  
+          sudo -u githubuser pactl load-module module-null-sink sink_name=virtual_speaker
+          sudo -u githubuser pactl set-default-sink virtual_speaker
+          sudo -u githubuser pip install -r requirements.txt
+          sudo -u githubuser pip install coverage
+        env:
+          USER: githubuser
+
       - name: Configure ALSA to use PulseAudio
         run: |
-          echo 'pcm.!default { type pulse }' >> ~/.asoundrc
-          echo 'ctl.!default { type pulse }' >> ~/.asoundrc
-  
+          sudo -u githubuser echo 'pcm.!default { type pulse }' >> /home/githubuser/.asoundrc
+          sudo -u githubuser echo 'ctl.!default { type pulse }' >> /home/githubuser/.asoundrc
+        env:
+          USER: githubuser
+
       - name: Test simplified PulseAudio setup
         run: |
-          pulseaudio --kill
-          pulseaudio --start --log-target=syslog
-          pactl load-module module-null-sink
-          pactl set-default-sink null
-          pactl info
+          sudo -u githubuser pulseaudio --kill
+          sudo -u githubuser pulseaudio --start --log-target=syslog
+          sudo -u githubuser pactl load-module module-null-sink
+          sudo -u githubuser pactl set-default-sink null
+          sudo -u githubuser pactl info
+        env:
+          USER: githubuser
 
       - name: Install tox and any other packages
-        run: pip install tox
+        run: sudo -u githubuser pip install tox
+        env:
+          USER: githubuser
+
       - name: Run tox
         env:
-          PULSE_SERVER: /run/user/$(id -u)/pulse/native
+          PULSE_SERVER: /run/user/$(id -u githubuser)/pulse/native
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
@@ -99,8 +108,12 @@ jobs:
           WHISPER_MODEL_NAME: ${{ secrets.WHISPER_MODEL_NAME }}
           TTS_MODEL_NAME: ${{ secrets.TTS_MODEL_NAME }}
           TTS_VOICE_NAME: ${{ secrets.TTS_VOICE_NAME }}
-        run: tox -e py312
+        run: sudo -u githubuser tox -e py312
+        env:
+          USER: githubuser
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          USER: githubuser
