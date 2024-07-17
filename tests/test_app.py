@@ -63,17 +63,17 @@ async def test_synthesize_and_play_speech_error_handling(caplog):
         assert "Error while synthesizing speech: Synthesis Error" in caplog.text
 
 @pytest.fixture
-def setup_env_vars():
-    patcher = patch.dict('os.environ', {
+def setup_env_vars(monkeypatch):
+    monkeypatch.setattr(os, 'environ', {
         'AZURE_OPENAI_API_KEY': 'test-key',
         'AZURE_OPENAI_ENDPOINT': 'test-endpoint',
         'AZURE_API_VERSION': 'test-version',
         'VOICE_NAME': 'test-voice',
-        'MODEL_NAME': 'test-model'
+        'MODEL_NAME': 'test-model',
+        'LOOP_COUNT': '1'  # You can adjust this as needed for your tests
     })
-    patcher.start()
     yield
-    patcher.stop()
+
 
 
 @pytest.mark.asyncio
