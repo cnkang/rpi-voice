@@ -68,7 +68,7 @@ def strip_tags_and_newlines(xml_str):
     clean_text = no_tags.replace('\n', '').replace('\r', '').replace(' ',"")
     return clean_text
 
-def manage_dialogue_history(user_prompt, assistant_response):
+def manage_dialogue_history(user_prompt: str, assistant_response: str):
     """
     Manages the dialogue history by adding the user prompt and assistant response to the history.
     Removes the oldest records from the history if the total length of the history exceeds the remaining tokens.
@@ -80,6 +80,10 @@ def manage_dialogue_history(user_prompt, assistant_response):
     global dialogue_history
     global remaining_tokens
     try:
+        if not isinstance(assistant_response['content'], str):
+            logging.error("Invalid type for assistant_response['content']: %s", type(assistant_response['content']))
+            return  # Early return to prevent further processing
+
         plain_text_content = strip_tags_and_newlines(assistant_response['content'])
         # Update assistant_response with plain text
         assistant_response['content'] = plain_text_content
@@ -228,6 +232,7 @@ async def interact_with_openai(client, prompts):
 
 async def synthesize_and_play_speech(tscript):
     # Create and use instance of TextToSpeech
+    logging.info("synthesize_and_play_speech called with: %s", tscript)
     tts_processor = TextToSpeech()
     try:
         await tts_processor.synthesize_speech(tscript)
@@ -235,53 +240,39 @@ async def synthesize_and_play_speech(tscript):
         logging.error("Error while synthesizing speech: %s", e)
         raise
 
-async def main() -> None:
-    """
-    Main function to run the program asynchronously.
-    """
+async def main(loop_count: Optional[int] = None) -> None:
     global dialogue_history
     openai_client: Optional[AsyncAzureOpenAI] = await create_openai_client()
     if openai_client is None:
         return
-
+    iteration = 0
     while True:
+        if loop_count is not None and iteration >= loop_count:
+            break
         try:
-            # Transcribe speech to text
             text_transcript: Optional[str] = await transcribe_speech_to_text()
             if text_transcript is None:
                 return
-
-            # Create prompts for OpenAI
-            system_prompt = {
-                "role": "system",
-                "content": _create_system_prompt()
-            }
-            user_prompt = {
-                "role": "user",
-                "content": text_transcript,
-            }
-            prompts = _create_prompts(system_prompt, user_prompt)
-            print(prompts)
-
-            # Interact with OpenAI
+            
+            system_prompt = {"role": "system", "content": _create_system_prompt()}
+            user_prompt = {"role": "user", "content": text_transcript}
+            prompts = [system_prompt, user_prompt] + dialogue_history
+            
             response_text: Optional[str] = await interact_with_openai(openai_client, prompts)
             if response_text is None:
                 logging.error("No valid response received from OpenAI.")
                 return
 
-            # Synthesize and play speech
-            assistant_response = {
-                "role": "assistant",
-                "content": response_text,
-            }
-            logging.info("OpenAI Response: %s", response_text)
+            assistant_response = {"role": "assistant", "content": response_text}
+            
             await synthesize_and_play_speech(response_text)
-
-            # Manage dialogue history
             manage_dialogue_history(user_prompt, assistant_response)
             
         except Exception as e:
             logging.error("Error in the main loop: %s", e)
+        finally:
+            iteration += 1
+    logging.info("Exiting main function.")
 
 
 def _create_system_prompt() -> str:

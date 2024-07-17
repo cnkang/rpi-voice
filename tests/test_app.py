@@ -62,31 +62,40 @@ async def test_synthesize_and_play_speech_error_handling(caplog):
             await synthesize_and_play_speech("Hello world")
         assert "Error while synthesizing speech: Synthesis Error" in caplog.text
 
-
 @pytest.fixture
 def setup_env_vars():
-    os.environ['AZURE_OPENAI_API_KEY'] = 'test-key'
-    os.environ['AZURE_OPENAI_ENDPOINT'] = 'test-endpoint'
-    os.environ['AZURE_API_VERSION'] = 'test-version'
-    os.environ['VOICE_NAME'] = 'test-voice'
-    os.environ['MODEL_NAME'] = 'test-model'
+    patcher = patch.dict('os.environ', {
+        'AZURE_OPENAI_API_KEY': 'test-key',
+        'AZURE_OPENAI_ENDPOINT': 'test-endpoint',
+        'AZURE_API_VERSION': 'test-version',
+        'VOICE_NAME': 'test-voice',
+        'MODEL_NAME': 'test-model'
+    })
+    patcher.start()
+    yield
+    patcher.stop()
+
 
 @pytest.mark.asyncio
 async def test_main_flow_success(setup_env_vars):
-    # Mocking the Async OpenAI client and WhisperSTT
-    with patch('app.create_openai_client', AsyncMock()) as mock_client_creator, \
+    mock_choice = AsyncMock()
+    setattr(mock_choice, 'message', type('obj', (object,), {'content': "Mocked response"}))
+
+    mock_response = AsyncMock(choices=[mock_choice])
+    openai_client_mock = AsyncMock()
+    openai_client_mock.chat.completions.create.return_value = mock_response
+    
+    with patch('app.create_openai_client', return_value=openai_client_mock) as mock_client_creator, \
          patch('app.transcribe_speech_to_text', AsyncMock(return_value="test transcription")) as mock_transcribe, \
          patch('app.synthesize_and_play_speech', AsyncMock()) as mock_synth:
+
+        await main(loop_count=1)
         
-        openai_client_mock = AsyncMock()
-        openai_client_mock.chat.completions.create.return_value = AsyncMock(choices=[AsyncMock(message=AsyncMock(content="Mocked response"))])
-        mock_client_creator.return_value = openai_client_mock
-        
-        await main()
-        
-        mock_client_creator.assert_called_once()
-        mock_transcribe.assert_called_once()
-        mock_synth.assert_called_once_with("Mocked response")
+        assert mock_client_creator.call_count == 1
+        assert mock_transcribe.call_count == 1
+        mock_synth.assert_has_calls([call("Mocked response")])
+
+
 
 @pytest.mark.asyncio
 async def test_main_flow_no_openai_client(setup_env_vars):
