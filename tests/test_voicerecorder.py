@@ -1,9 +1,9 @@
 import io
 import asyncio
 import pytest
-import time
 import itertools
-from unittest.mock import patch, AsyncMock, MagicMock
+from threading import Timer
+from unittest.mock import Mock,patch, AsyncMock, MagicMock
 import sounddevice as sd
 
 from voicerecorder import VoiceRecorder
@@ -59,3 +59,28 @@ async def test_recorder_timeout(mock_input_stream):
     with pytest.raises(asyncio.TimeoutError):
         # Use a timeout shorter than the delay induced by stream read
         await asyncio.wait_for(voice_recorder.record_audio_vad(max_duration=2.0), timeout=0.1)
+
+
+def test_record_audio_with_speech_frames(voice_recorder):
+    callback_mock = Mock()
+    audio_data = b'speech_audio_data'
+    vad_mock = Mock()
+    
+    # Return True for a limited number of calls to simulate speech, then return False
+    is_speech_responses = [True] * 10 + [False] * 100  # True for first 10 calls, then False
+    vad_mock.is_speech = Mock(side_effect=is_speech_responses)
+    
+    stream_mock = MagicMock()
+    stream_mock.read.return_value = (audio_data, None)
+    stream_mock.__enter__.return_value = stream_mock
+
+    voice_recorder.sample_rate = 16000
+    voice_recorder.vad = vad_mock
+
+    with patch('voicerecorder.sd.RawInputStream', return_value=stream_mock), \
+         patch('voicerecorder.webrtcvad.Vad', return_value=vad_mock):
+        voice_recorder.record_audio(callback=callback_mock)
+        
+        # Validate that is_speech was called expected number of times
+        assert vad_mock.is_speech.call_count < 112
+

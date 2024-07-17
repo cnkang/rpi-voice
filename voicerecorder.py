@@ -22,6 +22,8 @@ class VoiceRecorder:
         Initializes the VoiceRecorder class and sets the sample rate to 16kHz.
         """
         self.sample_rate: int = 16000
+        self.audio_frames: List[bytes] = []  # Initialize audio frame storage
+
         logging.debug("VoiceRecorder initialized with sample_rate: %d", self.sample_rate)
 
 
@@ -56,7 +58,6 @@ class VoiceRecorder:
                 while True:
                     # Read audio data in chunks of 20ms
                     audio_data, _ = stream.read(int(self.sample_rate * 0.02))
-                    
                     # Apply VAD to the audio data
                     if vad.is_speech(audio_data, sample_rate=self.sample_rate):
                         # Append speech frames to the list
