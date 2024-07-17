@@ -87,7 +87,8 @@ async def test_main_flow_success(setup_env_vars):
     
     with patch('app.create_openai_client', return_value=openai_client_mock) as mock_client_creator, \
          patch('app.transcribe_speech_to_text', AsyncMock(return_value="test transcription")) as mock_transcribe, \
-         patch('app.synthesize_and_play_speech', AsyncMock()) as mock_synth:
+         patch('app.synthesize_and_play_speech', AsyncMock()) as mock_synth, \
+         patch('app.dialogue_history',[]):
 
         await main(loop_count=1)
         
