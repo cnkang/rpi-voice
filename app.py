@@ -271,7 +271,7 @@ async def main(loop_count: Optional[int] = None) -> None:
             assistant_response = {"role": "assistant", "content": response_text}
             
             await synthesize_and_play_speech(response_text)
-            manage_dialogue_history(user_prompt, assistant_response)
+            manage_dialogue_history(str(user_prompt), str(assistant_response))
             
         except Exception as e:
             logging.error("Error in the main loop: %s", e)
