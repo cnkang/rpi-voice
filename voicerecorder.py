@@ -35,30 +35,35 @@ class VoiceRecorder:
         Returns:
             None
         """
-        audio_frames = []  # List to store the recorded audio frames
-        vad = webrtcvad.Vad()  # Create a WebRTC Voice Activity Detector (VAD) instance
-        sample_width = sd.default.samplerate * sd.default.channels // 1000  # Calculate the sample width
+        # List to store the recorded audio frames
+        audio_frames: List[bytes] = []
+        
+        # Create a WebRTC Voice Activity Detector (VAD) instance
+        vad: webrtcvad.Vad = webrtcvad.Vad()
         
         try:
+            # Use the default device, set the data type to 16-bit signed integer, use the default number of channels,
+            # set the sample rate, use the optional callback function, read audio data in chunks of 20ms
             with sd.RawInputStream(
-                device=sd.default.device["device_index"],  # Use the default device
-                dtype="int16",  # Set the data type to 16-bit signed integer
-                channels=sd.default.channels,  # Use the default number of channels
-                samplerate=self.sample_rate,  # Set the sample rate
-                callback_streaming_callback=callback,  # Optional callback function
-                blocksize=int(self.sample_rate * 0.02)  # Read audio data in chunks of 20ms
+                dtype="int16",
+                channels=1,
+                samplerate=self.sample_rate,
+                callback=callback,
+                blocksize=int(self.sample_rate * 0.02),
             ) as stream:
                 while True:
                     # Read audio data in chunks of 20ms
-                    audio_data = stream.read(int(self.sample_rate * 0.02), exception=True)
+                    audio_data, _ = stream.read(int(self.sample_rate * 0.02))
+                    
                     # Apply VAD to the audio data
-                    if vad.is_speech(audio_data.data, sample_rate=self.sample_rate):
+                    if vad.is_speech(audio_data, sample_rate=self.sample_rate):
                         # Append speech frames to the list
                         audio_frames.append(audio_data)
                     else:
                         # Discard non-speech frames
                         continue
         except Exception as e:
+            # Log the error if there is any during audio recording
             logging.error(f"Error during audio recording: {e}")
 
     def array_to_pcm_bytes(self, audio_frames: List[bytes]) -> io.BytesIO:
@@ -192,7 +197,7 @@ class VoiceRecorder:
         try:
             # Start the audio input stream with the specified parameters
             with sd.InputStream(callback=lambda indata, frames, time, status: process_frame(indata.tobytes()),
-                                samplerate=self.sample_rate, channels=1, dtype='int16', blocksize=160):
+                                samplerate=self.sample_rate, channels=1, dtype='int16', blocksize=int(self.sample_rate * 0.02)):
                 # Continuously sleep for 0.1 seconds while the recording is active
                 while recording_active:
                     await asyncio.sleep(0.1)
