@@ -2,15 +2,17 @@ import os
 import asyncio
 import logging
 import re
+import io
+import tempfile
+import shutil
 from typing import Optional
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 import httpx
 from tts import TextToSpeech
 from whisper import WhisperSTT,save_temp_wav_file
-import io
-import tempfile
-import shutil
+from voicerecorder import VoiceRecorder
+
 
 dialogue_history = []
 remaining_tokens = 0
@@ -144,7 +146,6 @@ async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = Non
     whisper = whisper_instance or WhisperSTT()
     
     try:
-        from voicerecorder import VoiceRecorder
         voice_recorder = VoiceRecorder()
         audio_frames = await voice_recorder.record_audio_vad()
         wav_audio_buffer = voice_recorder.array_to_wav_bytes(audio_frames)

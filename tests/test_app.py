@@ -1,13 +1,13 @@
 # tests/test_app.py
 import os
-import pytest
 from unittest import TestCase, mock
-from unittest.mock import patch, AsyncMock, call
+from unittest.mock import patch, AsyncMock, call, MagicMock
+import pytest
 import openai
 from dotenv import load_dotenv
 from app import (
     initialize_env, create_openai_client, transcribe_speech_to_text,
-    interact_with_openai, synthesize_and_play_speech, main
+    interact_with_openai, synthesize_and_play_speech, main, _create_prompts
 )
 
 @pytest.fixture(autouse=True)
@@ -28,6 +28,7 @@ async def test_create_openai_client_missing_env_vars():
         assert "Missing credentials" in str(exc_info.value)
 
 
+
 @pytest.mark.asyncio
 async def test_create_openai_client():
     # Test creation of OpenAI client with all environment variables set
@@ -43,6 +44,24 @@ async def test_interact_with_openai_error_handling():
     # Testing with incorrect role
     with pytest.raises(AssertionError):
         await interact_with_openai(client, [{"role": "alien", "content": "Hello."}])
+
+@pytest.mark.asyncio
+async def test_transcription_successful() -> None:
+    # Mocking the necessary objects and functions
+    whisper_instance = MagicMock()
+    whisper_instance.transcribe_audio = AsyncMock(return_value="Hello, world!")
+    temp_wav_path = "temp_audio.wav"
+
+    with patch('app.WhisperSTT', return_value=whisper_instance), \
+         patch('app.VoiceRecorder') as mock_voice_recorder, \
+         patch('app.save_temp_wav_file', return_value=temp_wav_path):
+        mock_voice_recorder.return_value.record_audio_vad.return_value = [b'audio_data']
+        mock_voice_recorder.return_value.array_to_wav_bytes.return_value = b'wav_data'
+
+        # Test that the function doesn't return None
+        assert await transcribe_speech_to_text(whisper_instance) is not None
+        # Test that the function doesn't raise an exception
+        await transcribe_speech_to_text(whisper_instance)
 
 @pytest.mark.asyncio
 async def test_transcribe_speech_to_text_error_handling(caplog):
@@ -74,7 +93,12 @@ def setup_env_vars(monkeypatch):
     })
     yield
 
-
+@pytest.mark.asyncio
+async def test_missing_role_key_in_prompt():
+    client = AsyncMock()
+    prompts = [{"content": "Missing role key"}]
+    with pytest.raises(AssertionError):
+        await interact_with_openai(client, prompts)
 
 @pytest.mark.asyncio
 async def test_main_flow_success(setup_env_vars):
@@ -123,3 +147,43 @@ def test_required_env_vars_missing(monkeypatch):
     monkeypatch.setitem(os.environ, 'AZURE_OPENAI_ENDPOINT', '')
     with pytest.raises(ValueError, match="Missing environment variables"):
         initialize_env(load_env=False)
+
+@pytest.mark.asyncio
+async def test_main_loop_count_none():
+    with patch('os.getenv', side_effect=lambda k: {'AZURE_OPENAI_API_KEY': 'dummy_key', 'AZURE_OPENAI_ENDPOINT': 'dummy_endpoint', 'AZURE_API_VERSION': '2024-05-01-preview'}.get(k, None)):
+        await main()
+
+
+@pytest.mark.asyncio
+async def test_main_no_valid_response(caplog):
+    # Mock the create_openai_client to return a valid client object
+    openai_client_mock = AsyncMock()
+    with patch('app.create_openai_client', AsyncMock(return_value=openai_client_mock)), \
+         patch('app.transcribe_speech_to_text', AsyncMock(return_value="Hello")), \
+         patch('app.interact_with_openai', AsyncMock(return_value=None)), \
+         patch('app.synthesize_and_play_speech') as mock_synth:
+        
+        # Call the main function with adjusted environment to not loop indefinitely
+        await main(loop_count=1)
+        
+        # Check that the error was logged
+        assert "No valid response received from OpenAI." in caplog.text
+        # Ensure that synthesize_and_play_speech is not called
+        mock_synth.assert_not_called()
+
+def test_empty_dialogue_history():
+    system_prompt = {"prompt": "System prompt"}
+    user_prompt = {"prompt": "User prompt"}
+    with patch('app.dialogue_history', []):
+        expected_prompts = [system_prompt, user_prompt]
+        actual_prompts = _create_prompts(system_prompt, user_prompt)
+        assert actual_prompts == expected_prompts
+
+def test_non_empty_dialogue_history():
+    system_prompt = {"prompt": "System prompt"}
+    user_prompt = {"prompt": "User prompt"}
+    with patch('app.dialogue_history', [{"prompt": "History prompt 1"}, {"prompt": "History prompt 2"}]):
+        dialogue_history = [{"prompt": "History prompt 1"}, {"prompt": "History prompt 2"}]
+        expected_prompts = [system_prompt] + dialogue_history + [user_prompt]
+        actual_prompts = _create_prompts(system_prompt, user_prompt)
+        assert actual_prompts == expected_prompts
