@@ -242,6 +242,7 @@ async def synthesize_and_play_speech(tscript):
 
 async def main(loop_count: Optional[int] = None) -> None:
     global dialogue_history
+    loop_count = int(os.getenv("LOOP_COUNT", "10000"))
     openai_client: Optional[AsyncAzureOpenAI] = await create_openai_client()
     if openai_client is None:
         return
