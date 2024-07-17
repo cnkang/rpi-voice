@@ -22,6 +22,8 @@ class VoiceRecorder:
         Initializes the VoiceRecorder class and sets the sample rate to 16kHz.
         """
         self.sample_rate: int = 16000
+        logging.debug("VoiceRecorder initialized with sample_rate: %d", self.sample_rate)
+
 
 
     def record_audio(self, callback: Optional[asyncio.Task] = None) -> None:
@@ -141,7 +143,7 @@ class VoiceRecorder:
         """
         # Create an instance of webrtcvad to detect voice activity
         vad = webrtcvad.Vad(mode=3)
-
+        logging.debug("VAD initialized with mode: %d", 3)
         # Log the start of the recording
         logging.info("Start recording...")
 
@@ -190,16 +192,21 @@ class VoiceRecorder:
 
             # Check if the speech is detected in the frame
             is_speech = vad.is_speech(frame_data, self.sample_rate)
+            logging.debug("Frame processed. Speech detected: %s", is_speech)
 
             # Update the recording status based on the speech detected
             update_recording_status(frame_data, is_speech)
 
         try:
+            start_time = time.perf_counter()
             # Start the audio input stream with the specified parameters
             with sd.InputStream(callback=lambda indata, frames, time, status: process_frame(indata.tobytes()),
                                 samplerate=self.sample_rate, channels=1, dtype='int16', blocksize=int(self.sample_rate * 0.02)):
                 # Continuously sleep for 0.1 seconds while the recording is active
                 while recording_active:
+                    current_time = time.perf_counter()
+                    if current_time - start_time > max_duration:
+                        break
                     await asyncio.sleep(0.1)
         except sd.PortAudioError as e:
             # Log the error and raise an exception if there is an error during recording
@@ -208,6 +215,18 @@ class VoiceRecorder:
 
         # Return the recorded frames
         return recorded_frames
+    def _process_audio_frame(self, indata, vad, recorded_frames, current_silence_duration, num_silent_frames_to_stop):
+        is_speech = vad.is_speech(indata.tobytes(), self.sample_rate)
+        logging.debug("is_speech: %s", is_speech)
+        if not is_speech:
+            current_silence_duration += 1
+        else:
+            current_silence_duration = 0
+            recorded_frames.append(indata.tobytes())
+            logging.debug("Speech frame recorded")
+        if current_silence_duration >= num_silent_frames_to_stop:
+            logging.info("Maximum silence duration reached, stopping recording")
+            recording_active = False
 
 async def main():
     """
