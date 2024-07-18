@@ -217,17 +217,38 @@ class VoiceRecorder:
         # Return the recorded frames
         return recorded_frames
     def _process_audio_frame(self, indata, vad, recorded_frames, current_silence_duration, num_silent_frames_to_stop):
-        is_speech = vad.is_speech(indata.tobytes(), self.sample_rate)
-        logging.debug("is_speech: %s", is_speech)
+        """
+        Processes a single audio frame, determines if it contains speech, and updates the silence duration and recorded frames.
+
+        Args:
+            indata (bytes): The current audio frame to process.
+            vad (VAD): An instance of the Voice Activity Detection (VAD) class to evaluate speech presence.
+            recorded_frames (list): A list of recorded audio frames that contain speech.
+            current_silence_duration (int): The current duration of detected silence in consecutive frames.
+            num_silent_frames_to_stop (int): The number of silent frames to encounter before stopping the recording.
+
+        Returns:
+            int: The updated silence duration after processing the current frame.
+        """
+
+        # Check if the current frame contains speech
+        is_speech = vad.is_speech(indata, self.sample_rate)
+
         if not is_speech:
+            # If no speech is detected, increment the silence duration
             current_silence_duration += 1
         else:
+            # If speech is detected, reset the silence duration and add the frame to the recorded frames
             current_silence_duration = 0
-            recorded_frames.append(indata.tobytes())
-            logging.debug("Speech frame recorded")
+            recorded_frames.append(indata)
+
+        # If the silence duration reaches the threshold, stop the recording
         if current_silence_duration >= num_silent_frames_to_stop:
-            logging.info("Maximum silence duration reached, stopping recording")
-            recording_active = False
+            self.recording_active = False  # Ensure the recording_active attribute is managed to control recording status
+
+        return current_silence_duration
+
+
 
 async def main():
     """

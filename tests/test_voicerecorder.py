@@ -6,7 +6,7 @@ from threading import Timer
 from unittest.mock import Mock,patch, AsyncMock, MagicMock
 import sounddevice as sd
 
-from voicerecorder import VoiceRecorder
+from voicerecorder import VoiceRecorder,main
 
 @pytest.fixture
 def voice_recorder():
@@ -84,3 +84,55 @@ def test_record_audio_with_speech_frames(voice_recorder):
         # Validate that is_speech was called expected number of times
         assert vad_mock.is_speech.call_count < 112
 
+@patch('voicerecorder.VoiceRecorder.record_audio_vad')
+@patch('voicerecorder.time.time')
+def test_main_records_audio_and_logs_duration_and_size(mock_time: MagicMock, mock_record_audio_vad: MagicMock) -> None:
+    """Test case: recording audio and logging duration and size."""
+    mock_time.side_effect = [1000, 1020]
+    mock_record_audio_vad.return_value = [b'frame1', b'frame2']
+    with patch('voicerecorder.logging.debug') as mock_debug, \
+         patch('voicerecorder.logging.info') as mock_info, \
+         patch('voicerecorder.logging.error') as mock_error:
+        asyncio.run(main())
+        mock_debug.assert_called_with("Recording duration: %.2f seconds", 20.0)
+        # Adjusted to the correct total bytes:
+        mock_info.assert_called_with("Audio recording completed, total bytes: %d", 12)
+        mock_error.assert_not_called()
+
+def test_not_speech(voice_recorder):
+    mock_vad = Mock()
+    mock_vad.is_speech.return_value = False
+    recorded_frames = []
+    current_silence_duration = 5
+    num_silent_frames_to_stop = 10
+
+    voice_recorder._process_audio_frame(b'', mock_vad, recorded_frames, current_silence_duration, num_silent_frames_to_stop)
+
+    # Expect current_silence_duration to increment by 1
+    assert current_silence_duration == 6, "Expected current_silence_duration to increment by 1"
+
+def test_not_speech(voice_recorder):
+    mock_vad = Mock()
+    mock_vad.is_speech.return_value = False
+    recorded_frames = []
+    current_silence_duration = 5
+    num_silent_frames_to_stop = 10
+
+    # Capture the potentially updated duration
+    updated_duration = voice_recorder._process_audio_frame(b'', mock_vad, recorded_frames, current_silence_duration, num_silent_frames_to_stop)
+
+    assert updated_duration == 6, "Expected current_silence_duration to increment by 1"
+
+def test_speech(voice_recorder):
+    mock_vad = Mock()
+    mock_vad.is_speech.return_value = True
+    recorded_frames = []
+    current_silence_duration = 5
+    num_silent_frames_to_stop = 10
+
+    frame_data = b'your_expected_data'
+    # Capture the potentially updated duration
+    updated_duration = voice_recorder._process_audio_frame(frame_data, mock_vad, recorded_frames, current_silence_duration, num_silent_frames_to_stop)
+
+    assert updated_duration == 0, "Expected current_silence_duration to reset to 0"
+    assert frame_data in recorded_frames, "Expected the frame data to be recorded"
