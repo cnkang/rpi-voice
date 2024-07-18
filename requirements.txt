@@ -16,6 +16,7 @@ asyncio>=3.4.3
 # Error handling and logging support in async environments
 aiologger>=0.6.0
 aiofiles>=23.2.1 
+numpy>=1.26.0
 # Testing tools
 pytest>=6.0.0
 pytest-asyncio>=0.15.0
