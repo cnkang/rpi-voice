@@ -1,92 +1,127 @@
-import os
-import httpx
-import logging
-from dotenv import load_dotenv
-from io import BytesIO
-from pydub import AudioSegment
-from pydub.playback import play
-import asyncio
+"""
+This module provides functionality to synthesize speech from text using the Azure
+Speech Service API, handling various configurations and user interactions.
+"""
 
-# Configuration and setup
-load_dotenv()
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+import asyncio
+import os
+import re
+import logging
+import azure.cognitiveservices.speech as speechsdk
+from dotenv import load_dotenv
 
 class TextToSpeech:
+    """
+    Class for text-to-speech synthesis using Azure Speech Service.
+    """
     def __init__(self):
-        self.api_key = os.getenv("AZURE_OPENAI_API_KEY")
-        self.voice_name = os.getenv("TTS_VOICE_NAME", "alloy")
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-        self.api_version = os.getenv("AZURE_API_VERSION","2024-02-15-preview")
-        self.tts_model = os.getenv("TTS_MODEL_NAME", "tts-1-hd")
-        self.headers = {"api-key": self.api_key, "Content-Type": "application/json"}
-        self.timeout = httpx.Timeout(10.0, connect=60.0)
-        self.max_retries = 3   # Define the maximum number of retries
-        self.retry_delay = 5   # Delay between retries in seconds
-        if not self.api_key or not self.endpoint or not self.api_version:
-            raise ValueError("Necessary configuration missing in environment variables.")
+        """
+        Initializes the TextToSpeech class by loading environment variables, setting the
+        voice name, and creating a SpeechConfig object for Azure Speech Service.
+        Raises EnvironmentError if required environment variables are not set.
+        """
+        load_dotenv()
+        self.voice_name = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
+        subscription = os.getenv("AZURE_SPEECH_KEY")
+        region = os.getenv("AZURE_SPEECH_REGION")
+        if not subscription or not region:
+            raise EnvironmentError("Environment variables for Azure Speech Service not set")
+        self.tts_config = speechsdk.SpeechConfig(subscription=subscription, region=region)
+        audio_output = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
+        self.synthesizer = speechsdk.SpeechSynthesizer(speech_config=self.tts_config, audio_config=audio_output)
 
-    def construct_request_url(self):
-        url = f"{self.endpoint}/openai/deployments/{self.tts_model}/audio/speech?api-version={self.api_version}"
-        return url
 
-    async def _make_request(self, data):
-        async with httpx.AsyncClient(http2=True, timeout=self.timeout) as client:
-            response = await client.post(self.construct_request_url(), headers=self.headers, json=data)
-            response.raise_for_status()
-            return response
+    async def synthesize_speech(self, text: str) -> bytes:
+        """
+        Synthesizes speech from a text string asynchronously, utilizing the Azure Speech API.
 
-    async def synthesize_speech(self, text):
+        Args:
+            text: A string to convert to speech.
+
+        Returns:
+            A byte-string containing the synthesized speech audio.
+
+        Raises:
+            RuntimeError: If speech synthesis fails or is cancelled.
+        """
         if not text:
-            raise AssertionError("Failed to synthesize speech: Empty input provided")
+            raise ValueError("Text cannot be empty")
 
-        data = {"model": self.tts_model, "input": text, "voice": self.voice_name}
-        retries = 0
-        max_retries = 3
-        retry_delay = 5
-
-        while retries < max_retries:
-            try:
-                response = await self._make_request(data)
-                logging.info("Speech synthesis request successful.")
-                return BytesIO(response.content)
-            except httpx.ReadTimeout as e:
-                retries += 1
-                logging.warning(f"Read timeout occurred, retry {retries}/{max_retries}")
-                await asyncio.sleep(retry_delay)
-            except (httpx.HTTPStatusError, httpx.RequestError) as e:
-                retries += 1
-                logging.error(f"Network or request error occurred: {e}")
-                await asyncio.sleep(retry_delay)
-            except Exception as e:
-                error_msg = f"Failed to synthesize speech: {e}"
-                logging.error(error_msg, exc_info=True)
-                raise AssertionError(error_msg)
-        if retries >= max_retries:
-            raise AssertionError("Failed after maximum retries.")
-
-    async def play_speech(self, audio_stream):
         try:
-            if audio_stream:
-                sound = AudioSegment.from_file(audio_stream, format="mp3")
-                logging.info("Playback started.")
-                play(sound)
+            ssml = self.convert_to_ssml(text)
+            logging.debug("SSML: %s", ssml)
+            result = self.synthesizer.speak_ssml_async(ssml).get()
+            if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+                return result.audio_data
+            if result.reason == speechsdk.ResultReason.Canceled:
+                if result.cancellation_details.reason == speechsdk.CancellationReason.Error:
+                    print(f"Error details: {result.cancellation_details.error_details}")
+                raise RuntimeError(f"Synthesis canceled: {result.cancellation_details.reason}")
+
             else:
-                logging.error("Failed to play speech: No audio stream.")
+                raise RuntimeError("Speech synthesis failed")
         except Exception as e:
-            logging.error(f"Error while playing audio: {e}", exc_info=True)
+            raise RuntimeError(f'Exception occurred during speech synthesis: {e}') from e
 
-# Usage
-async def main():
+    def convert_to_ssml(self, text: str) -> str:
+        """
+        Ensures provided text is formatted according to SSML standards, including <speak>
+        and <voice> tags.
+
+        Args:
+            text: The input text which may or may not be formatted in SSML.
+
+        Returns:
+            A properly formatted SSML string.
+
+        Raises:
+            ValueError: If the input text is empty.
+        """
+
+        # Regular expression pattern to match standard SSML format
+        ssml_pattern = re.compile(
+            r'^\s*<speak version=["\']1.0["\'] xmlns=["\']http://www\.w3\.org/2001/10/synthesis["\'] xml:lang=["\'][a-zA-Z-]+["\']>\s*<voice name=["\'][\w-]+["\']>.*</voice>\s*</speak>\s*$',
+            re.DOTALL
+        )
+
+        # If the text is already in the proper SSML format, return it as is
+        if ssml_pattern.match(text):
+            return text
+
+        # Otherwise, wrap the text in the SSML tags
+        ssml_text = (
+            # Opening <speak> tag with version and language attributes
+            f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'>"
+            # Opening <voice> tag with voice name attribute
+            f"<voice name='{self.voice_name}'>"
+            # Text to be synthesized
+            f"{text}"
+            # Closing <voice> tag
+            f"</voice>"
+            # Closing <speak> tag
+            f"</speak>"
+        )
+        return ssml_text
+
+
+async def main() -> None:
+    """
+    Asynchronously runs the main function, synthesizing and playing speech.
+    """
     tts = TextToSpeech()
-    text_to_synthesize = "Today is a wonderful day to build something people love!"
-    audio_stream = await tts.synthesize_speech(text_to_synthesize)
-    
-    # Properly handle None result
-    if audio_stream:
-        await tts.play_speech(audio_stream)
-    else:
-        logging.error("No audio stream was returned from synthesize_speech.")
-
+    await tts.synthesize_speech("Hello, how are you! 你好吗")
+    await tts.synthesize_speech(
+        "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' "
+        "xml:lang='zh-CN'><voice name='zh-CN-XiaoxiaoMultilingualNeural'>一二三四五，数数真有趣！</voice></speak>"
+    )
+    await tts.synthesize_speech(
+        "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' "
+        "xml:lang='en-US'><voice name='zh-CN-XiaoxiaoMultilingualNeural'><prosody rate='slow' "
+        "pitch='+20%'>Welcome to our service,</prosody><prosody rate='medium' pitch='+10%'>where "
+        "we offer <emphasis level='strong'>excellent customer experience</emphasis>.</prosody>"
+        "<break time='500ms'/>How can I assist you <emphasis level='moderate'>today?哈哈哈</emphasis>"
+        "</voice></speak>"
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -1,16 +1,52 @@
-import httpx
 import os
 import asyncio
 import logging
+import re
+import io
+import tempfile
+import shutil
+import json
+from typing import Optional
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
+import httpx
 from tts import TextToSpeech
-from whisper import WhisperSTT
+from whisper import WhisperSTT,save_temp_wav_file
+from voicerecorder import VoiceRecorder
 
+
+dialogue_history = []
+remaining_tokens = 0
 # Load environment variables
-def initialize_env(load_env=True):
+def initialize_env(load_env: bool = True) -> None:
+    """
+    Initialize environment variables for the application.
+
+    Args:
+        load_env (bool, optional): Whether to load environment variables from a .env file.
+            Defaults to True.
+
+    Raises:
+        ValueError: If any of the required environment variables are missing.
+
+    Returns:
+        None
+    """
+    # Load environment variables from .env file
     if load_env:
         load_dotenv()
+
+    # Required environment variables
+    required_env_vars = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"]
+
+    # Check if any required environment variables are missing
+    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    if missing_vars:
+        raise ValueError(f"Missing environment variables: {', '.join(missing_vars)}")
+
+    # Set default values for environment variables
+    os.environ.setdefault("AZURE_API_VERSION", "2024-05-01-preview")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -18,70 +54,154 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 VOICE_NAME = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
 MODEL_NAME = os.getenv("MODEL_NAME")
 
+def strip_tags_and_newlines(xml_str):
+    """
+    Strips all XML tags and newlines from the provided string and returns plain text.
+    
+    Args:
+        xml_str (str): The string containing XML tags.
+
+    Returns:
+        str: The plain text string without any XML tags or newlines.
+    """
+    # First remove all XML/SSML tags
+    no_tags = re.sub(r'<[^>]+>', '', xml_str)
+    # Then remove all newlines
+    clean_text = no_tags.replace('\n', '').replace('\r', '').replace(' ',"")
+    return clean_text
+
+def manage_dialogue_history(user_prompt: str, assistant_response: str):
+    """
+    Manages the dialogue history by adding the user prompt and assistant response to the history.
+    Removes the oldest records from the history if the total length of the history exceeds the remaining tokens.
+    
+    Args:
+        user_prompt (str): The user's prompt.
+        assistant_response (str): The assistant's response.
+    """
+    global dialogue_history
+    global remaining_tokens
+    try:
+        if not isinstance(assistant_response['content'], str):
+            logging.error("Invalid type for assistant_response['content']: %s", type(assistant_response['content']))
+            return  # Early return to prevent further processing
+
+        plain_text_content = strip_tags_and_newlines(assistant_response['content'])
+        # Update assistant_response with plain text
+        assistant_response['content'] = plain_text_content
+        # Add new user prompt and assistant response to the history
+        logging.info(
+        "Adding to history. User prompt: %s, Assistant response: %s", 
+        user_prompt, assistant_response
+        )
+
+        dialogue_history.append(user_prompt)
+        dialogue_history.append(assistant_response)
+        
+        # Remove the oldest records from the history if the total length exceeds the remaining tokens
+        while remaining_tokens - sum(len(p['content']) for p in dialogue_history) < 200:
+            # Remove the oldest pair of records from the history to maintain a paired logic
+            if len(dialogue_history) > 2:
+                dialogue_history.pop(0)  # Remove the oldest user prompt
+                dialogue_history.pop(0)  # Remove the oldest assistant response
+            else:
+                break
+
+    except Exception as e:
+        logging.error("Error in manage_dialogue_history: %s", e)
+
 class AudioStreamError(Exception):
     """Exception raised when the audio stream is invalid or synthesis fails."""
     pass
 
 # Function to create an async OpenAI client
 async def create_openai_client():
-    """Creates an async client for OpenAI using pre-loaded environment variables.
-       Raises:
-           ValueError: If any required configuration is missing.
-    """
-    # Dynamically load environment variables
-    api_key = os.getenv("AZURE_OPENAI_API_KEY")
-    api_version = os.getenv("AZURE_API_VERSION")
-    azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
-    
-    # Check if essential environment variables are missing
-    if not api_key:
-        raise ValueError("AZURE_OPENAI_API_KEY is required but missing.")
-    if not api_version:
-        raise ValueError("AZURE_API_VERSION is required but missing.")
-    if not azure_endpoint:
-        raise ValueError("AZURE_OPENAI_ENDPOINT is required but missing.")
-
-    # Since all conditions are checked, it's safe to proceed
+    # Similar to earlier, creating client using API keys and checking environment variables
     return AsyncAzureOpenAI(
-        api_key=api_key,
-        api_version=api_version,
-        azure_endpoint=azure_endpoint,
+        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+        api_version=os.getenv("AZURE_API_VERSION"),
+        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
         http_client=httpx.AsyncClient(http2=True),
     )
 
-# Function to transcribe speech to text using WhisperSTT
-async def transcribe_speech_to_text(whisper_instance=None):
-    """Converts speech to text using WhisperSTT and handles errors."""
+# Function to transcribe speech to text
+async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = None) -> str:
+    """
+    Transcribe speech to text using WhisperSTT.
+
+    Args:
+        whisper_instance (Optional[WhisperSTT]): An instance of WhisperSTT. If not provided,
+            a new instance will be created.
+
+    Returns:
+        str: The transcribed text.
+
+    Raises:
+        AudioStreamError: If the audio stream is invalid or synthesis fails.
+
+    This function records audio using voice activity detection (VAD) and transcribes the audio
+    using WhisperSTT. If whisper_instance is not provided, a new instance of WhisperSTT is created.
+    The transcribed text is returned if the transcription is successful. If an exception occurs,
+    an AudioStreamError is raised.
+    """
+    # Create an instance of WhisperSTT if not provided
     whisper = whisper_instance or WhisperSTT()
+    voice_recorder = VoiceRecorder()
     try:
-        # Make sure to await both the recording and transcription processes
-        audio = await whisper.record_audio_vad()
-        transcription = await whisper.transcribe_audio(audio)
+        audio_frames = await voice_recorder.record_audio_vad()
+        wav_audio_buffer = voice_recorder.array_to_wav_bytes(audio_frames)
+        transcription = await whisper.transcribe_audio_stream(wav_audio_buffer)
+        logging.info("Transcription received: %s", transcription)
         return transcription
     except Exception as e:
-        logging.error("Speech-to-text conversion error: %s", str(e))
-        return ""
+        logging.error("Speech-to-text conversion error: %s", e)
+        raise AudioStreamError("Speech-to-text conversion error: %s" % e) from e
+
+    finally:
+        if whisper_instance is None:
+            del whisper
 
 # Function to interact with OpenAI
 async def interact_with_openai(client, prompts):
-    """Send messages to OpenAI and get the response, raise AssertionError on input errors."""
+    """
+    Send messages to OpenAI and get the response, raise AssertionError on input errors.
+
+    Args:
+        client (AsyncAzureOpenAI): An instance of AsyncAzureOpenAI.
+        prompts (list[dict]): List of dictionaries containing 'role' and 'content'.
+            Each dictionary should have keys 'role' and 'content', where 'role' should be
+            either 'system', 'user', or 'assistant', and 'content' should be a string.
+
+    Returns:
+        str: The response from OpenAI.
+
+    Raises:
+        AssertionError: If prompts are not in the correct format or if any prompt does not have
+            'role' and 'content' keys.
+        AssertionError: If any prompt has an invalid 'role' value.
+        AssertionError: If an error occurs during interaction with OpenAI.
+    """
+    global remaining_tokens
     try:
-        # Ensure prompts are serializable; typically, they should be.
+        # Check if prompts are serializable and of the correct format
         if not isinstance(prompts, list) or not all(isinstance(p, dict) for p in prompts):
             error_message = "Prompts are not in the correct format: Should be a list of dictionaries."
             logging.error(error_message)
+            logging.error("Current prompts: %s", prompts)
             raise AssertionError(error_message)
 
-        # 检查每个prompt的结构是否合规
+        # Check if each prompt has the correct structure
         required_keys = {'role', 'content'}
-        valid_roles = {'system', 'user'}
+        valid_roles = {'system', 'user', 'assistant'}
         for prompt in prompts:
             if not required_keys <= prompt.keys():
                 error_message = "Each prompt should contain 'role' and 'content'."
                 logging.error(error_message)
                 raise AssertionError(error_message)
             if prompt['role'] not in valid_roles:
-                error_message = f"Role must be either 'system' or 'user', but got '{prompt['role']}'."
+                error_message = (
+                    f"Role must be 'system' or 'user' or 'assistant', but got '{prompt['role']}'."
+                )
                 logging.error(error_message)
                 raise AssertionError(error_message)
 
@@ -95,68 +215,102 @@ async def interact_with_openai(client, prompts):
             frequency_penalty=0,
             presence_penalty=0
         )
+        logging.info("OpenAI response object: %s", response)
+
+        # Process the response and return the result
         if response.choices and response.choices[0]:
             result = response.choices[0].message.content
+            remaining_tokens = 128000 - response.usage.total_tokens
+            logging.debug("Remaining tokens: %s", remaining_tokens)
+            logging.info("Response text: %s", result)
         else:
             result = "No response returned."
+            remaining_tokens = 0
 
         return result
     except Exception as e:
         logging.error("Error interacting with OpenAI: %s", str(e))
-        raise AssertionError(f"Error in the AI response: {str(e)}")
+        raise AssertionError('Error in the AI response: %s', {str(e)}) from e
 
-# Function to synthesize and play speech
 async def synthesize_and_play_speech(tscript):
-    # Create an instance of TextToSpeech to handle TTS operations
+    # Create and use instance of TextToSpeech
+    logging.info("synthesize_and_play_speech called with: %s", tscript)
     tts_processor = TextToSpeech()
     try:
-        # Check if the input text script is None, logging an error if so
-        if tscript is None:
-            logging.error("Text script is None, cannot synthesize speech")
-            return
-
-        # Use the TTS processor to synthesize the text into a streaming audio format
-        stream = await tts_processor.synthesize_speech(tscript)
-        
-        # If the speech synthesis failed or returned no valid stream, log error and raise an exception
-        if not stream:
-            error_msg = "Failed to synthesize speech or get valid audio stream"
-            logging.error(error_msg)
-            raise AudioStreamError(error_msg)  # Ensure code raises an exception here if the stream is invalid
-
-        # If valid stream is obtained, play the synthesized speech
-        await tts_processor.play_speech(stream)
+        await tts_processor.synthesize_speech(tscript)
     except Exception as e:
-        # Log any exceptions during the synthesis or playback process and rethrow the exception
-        logging.error("Error while synthesizing speech: %s", str(e))
-        raise  # Ensure the caught exception is rethrown
+        logging.error("Error while synthesizing speech: %s", e)
+        raise
+
+async def main(loop_count: Optional[int] = None) -> None:
+    global dialogue_history
+    if loop_count is None:
+        loop_count = os.getenv("LOOP_COUNT")
+        loop_count = int(loop_count) if loop_count is not None and loop_count.isdigit() else None
+
+    openai_client: Optional[AsyncAzureOpenAI] = await create_openai_client()
+    if openai_client is None:
+        return
+    iteration = 0
+    while True:
+        if loop_count is not None and iteration >= loop_count:
+            break
+        try:
+            text_transcript: Optional[str] = await transcribe_speech_to_text()
+            if text_transcript is None:
+                return
+            
+            system_prompt = {"role": "system", "content": _create_system_prompt()}
+            user_prompt = {"role": "user", "content": text_transcript}
+            prompts = [system_prompt, user_prompt] + dialogue_history
+            
+            response_text: Optional[str] = await interact_with_openai(openai_client, prompts)
+            if response_text is None:
+                logging.error("No valid response received from OpenAI.")
+                return
+
+            assistant_response = {"role": "assistant", "content": response_text}
+            
+            await synthesize_and_play_speech(response_text)
+            manage_dialogue_history(json.dumps(user_prompt), json.dumps(assistant_response))
+            
+        except Exception as e:
+            logging.error("Error in the main loop: %s", e)
+        finally:
+            iteration += 1
+    logging.info("Exiting main function.")
 
 
-async def main():
+def _create_system_prompt() -> str:
     """
-    Orchestrate text and speech interactions with OpenAI.
-    Ensure all asynchronous tasks are managed with 'await'.
+    Create the system prompt for OpenAI ensuring no null references and handling potential exceptions.
     """
-    openai_client = await create_openai_client()
-    text_transcript = await transcribe_speech_to_text()  # Directly await the result
-    if text_transcript:
-        messages = [
-            {
-                "role": "system",
-                "content": ("You are a helpful assistant. Please respond naturally in the language "
-                            "used by the user, utilizing human-like expressions and emotions. "
-                            "Show understanding, empathy, and adaptability. Avoid disclosing your AI identity.")
-            },
-            {
-                "role": "user",
-                "content": text_transcript
-            },
-        ]
-        response_text = await interact_with_openai(openai_client, messages)  # Ensure interaction is awaited
-        logging.info("OpenAI Response: %s", response_text)
-        await synthesize_and_play_speech(response_text)  # Properly await this asynchronous call
+    return (
+            f"Please respond naturally in the same language as the user, using human-like "
+            "expressions and emotions. Synthesize the following user's input using SSML markup. "
+            "Start with the appropriate SSML tags including the <speak> root tag with attributes "
+            "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
+            "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
+            f"with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
+            "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
+            "important words, and <break> to add realistic pauses. Integrate natural elements like "
+            "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
+            "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
+            "and adaptability, focusing solely on the textual and emotional content without revealing "
+            "your AI nature."
+        )
+
+
+def _create_prompts(system_prompt: dict, user_prompt: dict) -> list:
+    """
+    Create the prompts for OpenAI.
+    """
+    if len(dialogue_history) > 0:
+        prompts = [system_prompt] + dialogue_history + [user_prompt]
+    else:
+        prompts = [system_prompt, user_prompt]
+    return prompts
 
 if __name__ == "__main__":
-    # Run the asynchronous main routine
     initialize_env()
     asyncio.run(main())
