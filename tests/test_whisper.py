@@ -57,7 +57,7 @@ async def test_main_success(caplog):
     # Ensuring proper logging and function execution in the main function
     with patch('voicerecorder.VoiceRecorder') as mock_recorder:
         mock_future = asyncio.Future()
-        mock_future.set_result(b"audio data")  # Changed from numpy array to bytes
+        mock_future.set_result(b"audio data")
         mock_recorder.return_value.record_audio_vad.return_value = mock_future
         mock_recorder.return_value.array_to_wav_bytes.return_value = io.BytesIO(b"WAV data")
         

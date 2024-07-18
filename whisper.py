@@ -7,6 +7,7 @@ import httpx
 import io
 import tempfile
 import shutil
+from voicerecorder import VoiceRecorder
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -72,7 +73,6 @@ def save_temp_wav_file(audio_stream: io.BytesIO) -> str:
         return tmp_file_path
 
 async def main():
-    from voicerecorder import VoiceRecorder
     whisper_stt = WhisperSTT()
     voice_recorder = VoiceRecorder()
     temp_wav_file_path = None
