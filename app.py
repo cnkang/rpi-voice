@@ -137,12 +137,12 @@ async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = Non
         str: The transcribed text.
 
     Raises:
-        None
+        AudioStreamError: If the audio stream is invalid or synthesis fails.
 
     This function records audio using voice activity detection (VAD) and transcribes the audio
     using WhisperSTT. If whisper_instance is not provided, a new instance of WhisperSTT is created.
     The transcribed text is returned if the transcription is successful. If an exception occurs,
-    an empty string is returned.
+    an AudioStreamError is raised.
     """
     # Create an instance of WhisperSTT if not provided
     whisper = whisper_instance or WhisperSTT()
@@ -155,8 +155,11 @@ async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = Non
         return transcription
     except Exception as e:
         logging.error("Speech-to-text conversion error: %s", e)
-        return ""
+        raise AudioStreamError("Speech-to-text conversion error: %s" % e) from e
 
+    finally:
+        if whisper_instance is None:
+            del whisper
 
 # Function to interact with OpenAI
 async def interact_with_openai(client, prompts):

@@ -1,13 +1,14 @@
 # tests/test_app.py
 import os
 import asyncio
+import logging
 from unittest import TestCase, mock
 from unittest.mock import patch, AsyncMock, call, MagicMock
 import pytest
 import openai
 from dotenv import load_dotenv
 from app import (
-    initialize_env, create_openai_client, transcribe_speech_to_text,
+    initialize_env, create_openai_client, transcribe_speech_to_text,AudioStreamError,
     interact_with_openai, synthesize_and_play_speech, main, _create_prompts
 )
 from whisper import WhisperSTT
@@ -67,11 +68,18 @@ async def test_transcription_successful() -> None:
 
 @pytest.mark.asyncio
 async def test_transcribe_speech_to_text_error_handling(caplog):
-    mock_whisper = AsyncMock(spec=WhisperSTT)
-    mock_whisper.transcribe_audio_stream.side_effect = Exception("Transcription Error")
-    with pytest.raises(Exception):
-        await transcribe_speech_to_text(mock_whisper)
-    assert "Speech-to-text conversion error: Transcription Error" in caplog.text
+    with caplog.at_level(logging.ERROR):
+        mock_voice_recorder = AsyncMock()
+        mock_whisper = AsyncMock(spec=WhisperSTT)
+        mock_voice_recorder.record_audio_vad.return_value = [b'audio_data']
+        mock_voice_recorder.array_to_wav_bytes.return_value = b'wav_data'
+        mock_whisper.transcribe_audio_stream.side_effect = AssertionError("Transcription Error")
+        
+        with patch('app.VoiceRecorder', return_value=mock_voice_recorder), \
+            patch('app.WhisperSTT', return_value=mock_whisper):
+            with pytest.raises(AudioStreamError):
+                await transcribe_speech_to_text()
+            assert "Speech-to-text conversion error: Transcription Error" in caplog.text
 
 @pytest.mark.asyncio
 async def test_synthesize_and_play_speech_error_handling(caplog):
@@ -153,7 +161,7 @@ def test_required_env_vars_missing(monkeypatch):
 @pytest.mark.asyncio
 async def test_main_loop_count_none():
     with patch('os.getenv', side_effect=lambda k: {'AZURE_OPENAI_API_KEY': 'dummy_key', 'AZURE_OPENAI_ENDPOINT': 'dummy_endpoint', 'AZURE_API_VERSION': '2024-05-01-preview'}.get(k, None)):
-        await main()
+        await main(loop_count=1)
 
 
 @pytest.mark.asyncio
