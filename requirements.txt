@@ -5,9 +5,6 @@ python-dotenv>=0.20.0
 # Audio handling and playback
 pydub>=0.25.1 
 sounddevice>=0.4.4 
-# Numerical operations and scientific computing
-numpy>=1.22.2 
-scipy>=1.7.1 
 # Voice Activity Detection
 webrtcvad>=2.0.10 
 # Python project packaging tools
