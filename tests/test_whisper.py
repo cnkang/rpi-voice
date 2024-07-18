@@ -5,10 +5,8 @@ import logging
 import asyncio
 from unittest.mock import patch, AsyncMock, MagicMock, mock_open
 import pytest
-import numpy as np
 import io
 import os
-from pytest import raises
 
 from whisper import WhisperSTT, main as whisper_main, save_temp_wav_file
 
@@ -59,7 +57,7 @@ async def test_main_success(caplog):
     # Ensuring proper logging and function execution in the main function
     with patch('voicerecorder.VoiceRecorder') as mock_recorder:
         mock_future = asyncio.Future()
-        mock_future.set_result(np.zeros((1600,), dtype=np.int16))
+        mock_future.set_result(b"audio data")  # Changed from numpy array to bytes
         mock_recorder.return_value.record_audio_vad.return_value = mock_future
         mock_recorder.return_value.array_to_wav_bytes.return_value = io.BytesIO(b"WAV data")
         
