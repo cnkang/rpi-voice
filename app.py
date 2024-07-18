@@ -104,6 +104,8 @@ def manage_dialogue_history(user_prompt: str, assistant_response: str):
             if len(dialogue_history) > 2:
                 dialogue_history.pop(0)  # Remove the oldest user prompt
                 dialogue_history.pop(0)  # Remove the oldest assistant response
+            else:
+                break
 
     except Exception as e:
         logging.error("Error in manage_dialogue_history: %s", e)
@@ -144,16 +146,12 @@ async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = Non
     """
     # Create an instance of WhisperSTT if not provided
     whisper = whisper_instance or WhisperSTT()
-    
+    voice_recorder = VoiceRecorder()
     try:
-        voice_recorder = VoiceRecorder()
         audio_frames = await voice_recorder.record_audio_vad()
         wav_audio_buffer = voice_recorder.array_to_wav_bytes(audio_frames)
-        temp_wav_path = save_temp_wav_file(wav_audio_buffer)
-
-        transcription = await whisper.transcribe_audio(temp_wav_path)
+        transcription = await whisper.transcribe_audio_stream(wav_audio_buffer)
         logging.info("Transcription received: %s", transcription)
-        os.remove(temp_wav_path)
         return transcription
     except Exception as e:
         logging.error("Speech-to-text conversion error: %s", e)
@@ -245,7 +243,7 @@ async def main(loop_count: Optional[int] = None) -> None:
     global dialogue_history
     if loop_count is None:
         loop_count = os.getenv("LOOP_COUNT")
-        loop_count = int(loop_count) if loop_count is not None and loop_count.isdigit() else 0
+        loop_count = int(loop_count) if loop_count is not None and loop_count.isdigit() else None
 
     openai_client: Optional[AsyncAzureOpenAI] = await create_openai_client()
     if openai_client is None:
@@ -271,7 +269,7 @@ async def main(loop_count: Optional[int] = None) -> None:
             assistant_response = {"role": "assistant", "content": response_text}
             
             await synthesize_and_play_speech(response_text)
-            manage_dialogue_history(str(user_prompt), str(assistant_response))
+            manage_dialogue_history(user_prompt, assistant_response)
             
         except Exception as e:
             logging.error("Error in the main loop: %s", e)
