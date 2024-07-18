@@ -46,7 +46,6 @@ def initialize_env(load_env: bool = True) -> None:
 
     # Set default values for environment variables
     os.environ.setdefault("AZURE_API_VERSION", "2024-05-01-preview")
-    os.environ.setdefault("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -284,22 +283,22 @@ async def main(loop_count: Optional[int] = None) -> None:
 
 def _create_system_prompt() -> str:
     """
-    Create the system prompt for OpenAI.
+    Create the system prompt for OpenAI ensuring no null references and handling potential exceptions.
     """
     return (
-        f"Please respond naturally in the same language as the user, using human-like "
-        "expressions and emotions. Synthesize the following user's input using SSML markup. "
-        "Start with the appropriate SSML tags including the <speak> root tag with attributes "
-        "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
-        "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
-        "with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
-        "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
-        "important words, and <break> to add realistic pauses. Integrate natural elements like "
-        "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
-        "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
-        "and adaptability, focusing solely on the textual and emotional content without revealing "
-        "your AI nature.".format(VOICE_NAME=VOICE_NAME)
-    )
+            f"Please respond naturally in the same language as the user, using human-like "
+            "expressions and emotions. Synthesize the following user's input using SSML markup. "
+            "Start with the appropriate SSML tags including the <speak> root tag with attributes "
+            "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
+            "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
+            f"with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
+            "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
+            "important words, and <break> to add realistic pauses. Integrate natural elements like "
+            "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
+            "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
+            "and adaptability, focusing solely on the textual and emotional content without revealing "
+            "your AI nature."
+        )
 
 
 def _create_prompts(system_prompt: dict, user_prompt: dict) -> list:

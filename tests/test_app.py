@@ -9,8 +9,9 @@ import openai
 from dotenv import load_dotenv
 from app import (
     initialize_env, create_openai_client, transcribe_speech_to_text,AudioStreamError,
-    interact_with_openai, synthesize_and_play_speech, main, _create_prompts
+    interact_with_openai, synthesize_and_play_speech, main, _create_prompts, _create_system_prompt
 )
+
 from whisper import WhisperSTT
 
 @pytest.fixture(autouse=True)
@@ -196,3 +197,9 @@ def test_non_empty_dialogue_history():
         expected_prompts = [system_prompt] + dialogue_history + [user_prompt]
         actual_prompts = _create_prompts(system_prompt, user_prompt)
         assert actual_prompts == expected_prompts
+
+def test_create_system_prompt_with_valid_voice_name():
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr("app.VOICE_NAME", "test_voice")
+        prompt = _create_system_prompt()
+        assert prompt.startswith("Please respond naturally in the same language as the user")
