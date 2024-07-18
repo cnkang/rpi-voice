@@ -36,6 +36,23 @@ class WhisperSTT:
         except Exception as e:
             logging.error("Error during transcription: %s", e)
             return "Failed to transcribe audio"
+            
+    async def transcribe_audio_stream(self, audio_stream: io.BytesIO) -> str:
+        """Transcribes audio from an io.BytesIO stream."""
+        temp_file_path = save_temp_wav_file(audio_stream)
+        try:
+            with open(temp_file_path, 'rb') as audio_file:
+                response = await self.client.audio.transcriptions.create(
+                    model=os.getenv("WHISPER_MODEL_NAME"), file=audio_file
+                )
+            return response.text
+        except Exception as e:
+            logging.error("Error during transcription: %s", e)
+            return "Failed to transcribe audio"
+        finally:
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+    
 
 def save_temp_wav_file(audio_stream: io.BytesIO) -> str:
     """

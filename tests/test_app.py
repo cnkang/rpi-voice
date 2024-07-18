@@ -1,5 +1,6 @@
 # tests/test_app.py
 import os
+import asyncio
 from unittest import TestCase, mock
 from unittest.mock import patch, AsyncMock, call, MagicMock
 import pytest
@@ -9,6 +10,7 @@ from app import (
     initialize_env, create_openai_client, transcribe_speech_to_text,
     interact_with_openai, synthesize_and_play_speech, main, _create_prompts
 )
+from whisper import WhisperSTT
 
 @pytest.fixture(autouse=True)
 def set_up_environment(monkeypatch):
@@ -65,11 +67,11 @@ async def test_transcription_successful() -> None:
 
 @pytest.mark.asyncio
 async def test_transcribe_speech_to_text_error_handling(caplog):
-    mock_whisper = AsyncMock()
-    mock_whisper.transcribe_audio.side_effect = Exception("Transcription Error")
-    await transcribe_speech_to_text(mock_whisper)
+    mock_whisper = AsyncMock(spec=WhisperSTT)
+    mock_whisper.transcribe_audio_stream.side_effect = Exception("Transcription Error")
+    with pytest.raises(Exception):
+        await transcribe_speech_to_text(mock_whisper)
     assert "Speech-to-text conversion error: Transcription Error" in caplog.text
-
 
 @pytest.mark.asyncio
 async def test_synthesize_and_play_speech_error_handling(caplog):
