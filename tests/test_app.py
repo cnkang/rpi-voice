@@ -48,19 +48,18 @@ async def test_interact_with_openai_error_handling():
     with pytest.raises(AssertionError):
         await interact_with_openai(client, [{"role": "alien", "content": "Hello."}])
 
-@pytest.mark.asyncio
 async def test_transcription_successful() -> None:
     # Mocking the necessary objects and functions
-    whisper_instance = MagicMock()
+    whisper_instance = AsyncMock()
     whisper_instance.transcribe_audio = AsyncMock(return_value="Hello, world!")
     temp_wav_path = "temp_audio.wav"
-
+    
     with patch('app.WhisperSTT', return_value=whisper_instance), \
          patch('app.VoiceRecorder') as mock_voice_recorder, \
          patch('app.save_temp_wav_file', return_value=temp_wav_path):
-        mock_voice_recorder.return_value.record_audio_vad.return_value = [b'audio_data']
+        mock_voice_recorder.return_value.record_audio_vad = AsyncMock(return_value=[b'audio_data'])
         mock_voice_recorder.return_value.array_to_wav_bytes.return_value = b'wav_data'
-
+    
         # Test that the function doesn't return None
         assert await transcribe_speech_to_text(whisper_instance) is not None
         # Test that the function doesn't raise an exception
