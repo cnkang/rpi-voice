@@ -99,7 +99,7 @@ class VoiceRecorder:
         except Exception as e:
             # Log the error and raise an exception
             logging.error("Failed to write audio to buffer: %s", str(e))
-            raise Exception("Failed to write audio to buffer") from e
+            raise IOError("Failed to write audio to buffer") from e
 
     def array_to_wav_bytes(self, audio_frames: List[bytes]) -> io.BytesIO:
         """
