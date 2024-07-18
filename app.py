@@ -5,6 +5,7 @@ import re
 import io
 import tempfile
 import shutil
+import json
 from typing import Optional
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
@@ -272,7 +273,7 @@ async def main(loop_count: Optional[int] = None) -> None:
             assistant_response = {"role": "assistant", "content": response_text}
             
             await synthesize_and_play_speech(response_text)
-            manage_dialogue_history(user_prompt, assistant_response)
+            manage_dialogue_history(json.dumps(user_prompt), json.dumps(assistant_response))
             
         except Exception as e:
             logging.error("Error in the main loop: %s", e)
