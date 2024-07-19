@@ -1,6 +1,7 @@
 # Azure OpenAI and Speech SDK Integration
 
 [![Snyk](https://snyk.io/test/github/cnkang/rpi-voice/badge.svg)](https://snyk.io/test/github/cnkang/rpi-voice)![BuildTest](https://img.shields.io/github/actions/workflow/status/cnkang/rpi-voice/codecov.yaml)![codecov](https://img.shields.io/codecov/c/github/cnkang/rpi-voice)[![CodeFactor](https://www.codefactor.io/repository/github/cnkang/rpi-voice/badge)](https://www.codefactor.io/repository/github/cnkang/rpi-voice)[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=cnkang_rpi-voice&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=cnkang_rpi-voice)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcnkang%2Frpi-voice.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcnkang%2Frpi-voice?ref=badge_shield)
 
 
 This project demonstrates the integration of Azure's Cognitive Services, specifically OpenAI and the Speech SDK, to create a custom voice assistant. The assistant utilizes speech-to-text and text-to-speech capabilities for conversational user interaction.
@@ -68,3 +69,5 @@ This project is licensed under the Apache License 2.0. You may not use this file
    http://www.apache.org/licenses/LICENSE-2.0
 
 Software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for specific language governing permissions and limitations under the License.
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcnkang%2Frpi-voice.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcnkang%2Frpi-voice?ref=badge_large)
+
