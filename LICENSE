@@ -201,9 +201,3 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
-
-### Third-Party Licenses
-
-This project includes third-party libraries that are subject to different license terms:
-
-- `azure-cognitiveservices-speech`: Licensed under the [Microsoft Cognitive Services Speech SDK license](https://aka.ms/csspeech/license).
