@@ -22,7 +22,7 @@ class WhisperSTT:
         self.client = AsyncAzureOpenAI(
             azure_endpoint=self.endpoint,
             api_key=self.api_key,
-            api_version=os.getenv("AZURE_API_VERSION", "2024-05-01-preview"),
+            api_version=os.getenv("AZURE_API_VERSION", "2024-06-01"),
             http_client=httpx.AsyncClient(http2=True)
         )
 
