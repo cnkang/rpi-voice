@@ -20,5 +20,3 @@ numpy>=1.26.0
 # Testing tools
 pytest>=6.0.0
 pytest-asyncio>=0.15.0
-# Azure Cognitive Services Speech SDK
-azure-cognitiveservices-speech>=1.38.0
