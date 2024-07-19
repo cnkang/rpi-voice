@@ -1,6 +1,8 @@
 import pytest
+import io
 from unittest.mock import AsyncMock, patch, MagicMock
 import tts as tts_module
+from tts import main as tts_main
 from httpx import HTTPStatusError, TimeoutException
 
 # Make sure to simulate all components of an HTTP interaction including the request and response
@@ -74,3 +76,10 @@ async def test_convert_to_ssml_already_formatted():
     tts = tts_module.TextToSpeech()
     formatted_ssml = "<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='some-voice'>Hello, World!</voice></speak>"
     assert tts.convert_to_ssml(formatted_ssml) == formatted_ssml, "Should return the same SSML formatted text when already properly formatted."
+
+
+@pytest.mark.asyncio
+@patch('tts.TextToSpeech')
+@patch('tts.play')
+async def test_tts_main(mock_play, mock_text_to_speech):
+    tts_main()
