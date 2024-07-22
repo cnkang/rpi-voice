@@ -1,3 +1,4 @@
+anyio >= 4.4.0
 # Core libraries for API interactions
 openai>=1.36.1
 # Environment configuration management
@@ -20,3 +21,4 @@ numpy>=1.26.0
 # Testing tools
 pytest>=8.3.1
 pytest-asyncio>=0.23.8
+zipp >= 3.19.2
