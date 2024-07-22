@@ -1,6 +1,6 @@
 import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
-from httpx import HTTPStatusError, AsyncClient, Request,Response
+from unittest.mock import patch, AsyncMock
+from httpx import HTTPStatusError, Request,Response
 from pydub import AudioSegment
 import pytest
 import tts
