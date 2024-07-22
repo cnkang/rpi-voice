@@ -53,7 +53,7 @@ class TextToSpeech:
             response.raise_for_status()
             token = response.text.strip()
         if not token:
-            raise Exception("Token not found in response")
+            raise RuntimeError("Token not found in response")
         return token
         
 
