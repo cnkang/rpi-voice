@@ -1,5 +1,5 @@
 # Core libraries for API interactions
-openai>=1.0.0
+openai>=1.36.1
 # Environment configuration management
 python-dotenv>=0.20.0
 # Audio handling and playback
@@ -10,7 +10,7 @@ webrtcvad>=2.0.10
 # Python project packaging tools
 setuptools>=71.1.0
 # Asynchronous HTTP client with HTTP/2 support
-httpx[http2]>=0.23.0 
+httpx[http2]>=0.27.0 
 # Coroutine-based asynchronous I/O
 asyncio>=3.4.3 
 # Error handling and logging support in async environments
@@ -18,5 +18,5 @@ aiologger>=0.6.0
 aiofiles>=23.2.1 
 numpy>=1.26.0
 # Testing tools
-pytest>=6.0.0
-pytest-asyncio>=0.15.0
+pytest>=8.3.1
+pytest-asyncio>=0.23.8
