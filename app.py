@@ -45,7 +45,7 @@ def initialize_env(load_env: bool = True) -> None:
         raise ValueError(f"Missing environment variables: {', '.join(missing_vars)}")
 
     # Set default values for environment variables
-    os.environ.setdefault("AZURE_API_VERSION", "2024-05-01-preview")
+    os.environ.setdefault("AZURE_API_VERSION", "2024-06-01")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

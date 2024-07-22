@@ -69,12 +69,5 @@ This project is licensed under the Apache License 2.0. You may not use this file
    http://www.apache.org/licenses/LICENSE-2.0
 
 Software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for specific language governing permissions and limitations under the License.
-
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fcnkang%2Frpi-voice.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fcnkang%2Frpi-voice?ref=badge_large)
-
-### Third-Party Libraries
-
-This project uses the following third-party libraries:
-
-- `azure-cognitiveservices-speech` is subject to the [Microsoft Cognitive Services Speech SDK license](https://aka.ms/csspeech/license). Users should review and comply with the terms of this license.
 
