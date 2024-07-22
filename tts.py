@@ -89,7 +89,10 @@ class TextToSpeech:
             async with httpx.AsyncClient() as client:
                 response = await client.post(endpoint, headers=headers, content=ssml)
                 response.raise_for_status()  # Raise an exception for HTTP error responses
-                return response.content
+                if(not response.content):
+                    raise RuntimeError("Empty response content")
+                else:
+                    return response.content
 
         except httpx.HTTPStatusError as http_err:
             raise RuntimeError(f"HTTP error occurred during speech synthesis: {http_err}") from http_err

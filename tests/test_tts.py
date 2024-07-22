@@ -1,5 +1,5 @@
 import asyncio
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, Mock
 from httpx import HTTPStatusError, Request,Response
 from pydub import AudioSegment
 import pytest
@@ -40,6 +40,48 @@ async def test_synthesize_speech_http_error():
         # Validate that an appropriate error is raised on HTTP failure
         with pytest.raises(RuntimeError):
             await tts_service.synthesize_speech("This should fail due to HTTP error")
+
+@pytest.mark.asyncio
+async def test_synthesize_speech_valid_response():
+    # Mock HTTP client post request and its response
+    with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = AsyncMock(status_code=200, content=b"valid audio content")
+        tts_instance = tts.TextToSpeech()
+        
+        # Test the valid synthesis process
+        result = await tts_instance.synthesize_speech("Valid speech synthesis text.")
+        assert result == b"valid audio content"
+
+@pytest.mark.asyncio
+async def test_synthesize_speech_http_non_200_response():
+    with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = AsyncMock(status_code=401, raise_for_status=Mock(side_effect=HTTPStatusError(message="Unauthorized", request=Request('POST', 'https://dummyurl'), response=Response(401))))
+        
+        tts_instance = tts.TextToSpeech()
+        # Expecting a RuntimeError due to non-200 HTTP response
+        with pytest.raises(RuntimeError):
+            await tts_instance.synthesize_speech("This input should fail.")
+
+@pytest.mark.asyncio
+async def test_synthesize_speech_timeout():
+    with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+        mock_post.side_effect = asyncio.TimeoutError
+        
+        tts_instance = tts.TextToSpeech()
+        # Expecting a RuntimeError due to timeout
+        with pytest.raises(RuntimeError):
+            await tts_instance.synthesize_speech("Timeout should occur here.")
+
+@pytest.mark.asyncio
+async def test_synthesize_speech_invalid_content():
+    # Assuming invalid content to be empty bytes in response
+    with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = AsyncMock(status_code=200, content=b"")
+        
+        tts_instance = tts.TextToSpeech()
+        # Expecting a RuntimeError due to invalid/empty content
+        with pytest.raises(RuntimeError):
+            await tts_instance.synthesize_speech("This input should return invalid content.")
 @pytest.mark.asyncio
 async def test_get_azure_cognitive_access_token_timeout():
     tts_instance = tts.TextToSpeech()
@@ -88,6 +130,12 @@ async def test_convert_to_ssml_already_formatted():
     result = tts_instance.convert_to_ssml(formatted_ssml)
     assert result == formatted_ssml, "Should return the same SSML formatted text when already properly formatted."
 
+def test_text_not_in_proper_ssml_format():
+        # Test when the input text is not in the proper SSML format
+        input_text = "Hello World"
+        expected_output = f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='en-US'><voice name='zh-CN-XiaoxiaoMultilingualNeural'>{input_text}</voice></speak>"
+        result = tts.TextToSpeech().convert_to_ssml(input_text)
+        assert result == expected_output
 def create_silent_audio_segment(duration_ms=1000):
     return AudioSegment.silent(duration=duration_ms)
 
