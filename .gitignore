@@ -9,6 +9,8 @@ __pycache__/
 *.m4a
 *.pcm
 
+.ruff_cache
+
 # C extensions
 *.so
 
