@@ -23,12 +23,15 @@ class TextToSpeech:
         Raises EnvironmentError if required environment variables are not set.
         """
         load_dotenv()
+        
         self.voice_name = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
         self.subscription = os.getenv("AZURE_SPEECH_KEY")
         self.region = os.getenv("AZURE_SPEECH_REGION")
-        self.speechhost = self.region +  ".tts.speech.microsoft.com"
         if not self.subscription or not self.region:
             raise EnvironmentError("Environment variables for Azure Speech Service not set")
+
+        self.speechhost = self.region +  ".tts.speech.microsoft.com"
+
     async def get_azure_cognitive_access_token(self):
         """
         Obtains an access token from Azure Cognitive Services for authenticating API requests.
