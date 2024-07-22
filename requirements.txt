@@ -8,7 +8,7 @@ sounddevice>=0.4.4
 # Voice Activity Detection
 webrtcvad>=2.0.10 
 # Python project packaging tools
-setuptools>=65.5.1 
+setuptools>=71.1.0
 # Asynchronous HTTP client with HTTP/2 support
 httpx[http2]>=0.23.0 
 # Coroutine-based asynchronous I/O
