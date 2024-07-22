@@ -79,7 +79,6 @@ class TextToSpeech:
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/ssml+xml",
                 "X-Microsoft-OutputFormat": "audio-48khz-192kbitrate-mono-mp3",
-                "User-Agent": "PenguinTTS",
                 "Host": self.speechhost
             }
             
