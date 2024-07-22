@@ -2,6 +2,7 @@
 This module provides functionality to synthesize speech from text using the Azure
 Speech Service API, handling various configurations and user interactions.
 """
+
 import io
 import asyncio
 import os
@@ -12,10 +13,12 @@ from pydub import AudioSegment
 from pydub.playback import play
 from dotenv import load_dotenv
 
+
 class TextToSpeech:
     """
     Class for text-to-speech synthesis using Azure Speech Service.
     """
+
     def __init__(self):
         """
         Initializes the TextToSpeech class by loading environment variables, setting the
@@ -23,14 +26,16 @@ class TextToSpeech:
         Raises EnvironmentError if required environment variables are not set.
         """
         load_dotenv()
-        
+
         self.voice_name = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
         self.subscription = os.getenv("AZURE_SPEECH_KEY")
         self.region = os.getenv("AZURE_SPEECH_REGION")
         if not self.subscription or not self.region:
-            raise EnvironmentError("Environment variables for Azure Speech Service not set")
+            raise EnvironmentError(
+                "Environment variables for Azure Speech Service not set"
+            )
 
-        self.speechhost = self.region +  ".tts.speech.microsoft.com"
+        self.speechhost = self.region + ".tts.speech.microsoft.com"
 
     async def get_azure_cognitive_access_token(self):
         """
@@ -44,10 +49,10 @@ class TextToSpeech:
             httpx.TimeoutException: If the request times out.
             Exception: If the response does not contain a valid token.
         """
-        fetch_token_url = f"https://{self.region}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
-        headers = {
-            'Ocp-Apim-Subscription-Key': self.subscription
-        }
+        fetch_token_url = (
+            f"https://{self.region}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+        )
+        headers = {"Ocp-Apim-Subscription-Key": self.subscription}
         async with httpx.AsyncClient() as client:
             response = await client.post(fetch_token_url, headers=headers, timeout=10)
             response.raise_for_status()
@@ -55,7 +60,6 @@ class TextToSpeech:
         if not token:
             raise RuntimeError("Token not found in response")
         return token
-        
 
     async def synthesize_speech(self, text: str) -> bytes:
         """
@@ -76,29 +80,32 @@ class TextToSpeech:
         try:
             ssml = self.convert_to_ssml(text)
             logging.debug("Converted SSML: %s", ssml)
-            
+
             access_token = await self.get_azure_cognitive_access_token()
             headers = {
                 "Authorization": f"Bearer {access_token}",
                 "Content-Type": "application/ssml+xml",
                 "X-Microsoft-OutputFormat": "audio-48khz-192kbitrate-mono-mp3",
-                "Host": self.speechhost
+                "Host": self.speechhost,
             }
-            
+
             endpoint = f"https://{self.speechhost}/cognitiveservices/v1"
             async with httpx.AsyncClient() as client:
                 response = await client.post(endpoint, headers=headers, content=ssml)
                 response.raise_for_status()  # Raise an exception for HTTP error responses
-                if(not response.content):
+                if not response.content:
                     raise RuntimeError("Empty response content")
                 else:
                     return response.content
 
         except httpx.HTTPStatusError as http_err:
-            raise RuntimeError(f"HTTP error occurred during speech synthesis: {http_err}") from http_err
+            raise RuntimeError(
+                f"HTTP error occurred during speech synthesis: {http_err}"
+            ) from http_err
         except Exception as e:
-            raise RuntimeError(f'Exception occurred during speech synthesis: {e}') from e
-
+            raise RuntimeError(
+                f"Exception occurred during speech synthesis: {e}"
+            ) from e
 
     def convert_to_ssml(self, text: str) -> str:
         """
@@ -118,7 +125,7 @@ class TextToSpeech:
         # Regular expression pattern to match standard SSML format
         ssml_pattern = re.compile(
             r'^\s*<speak version=["\']1.0["\'] xmlns=["\']http://www\.w3\.org/2001/10/synthesis["\'] xml:lang=["\'][a-zA-Z-]+["\']>\s*<voice name=["\'][\w-]+["\']>.*</voice>\s*</speak>\s*$',
-            re.DOTALL
+            re.DOTALL,
         )
 
         # If the text is already in the proper SSML format, return it as is
@@ -162,6 +169,7 @@ async def main() -> None:
         "</voice></speak>"
     )
     play(AudioSegment.from_file(io.BytesIO(audio_bytes)))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

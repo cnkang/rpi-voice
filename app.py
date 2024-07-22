@@ -2,21 +2,20 @@ import os
 import asyncio
 import logging
 import re
-import io
-import tempfile
-import shutil
 import json
 from typing import Optional
 from dotenv import load_dotenv
 from openai import AsyncAzureOpenAI
 import httpx
 from tts import TextToSpeech
-from whisper import WhisperSTT,save_temp_wav_file
+from whisper import WhisperSTT
 from voicerecorder import VoiceRecorder
 
 
 dialogue_history = []
 remaining_tokens = 0
+
+
 # Load environment variables
 def initialize_env(load_env: bool = True) -> None:
     """
@@ -47,17 +46,21 @@ def initialize_env(load_env: bool = True) -> None:
     # Set default values for environment variables
     os.environ.setdefault("AZURE_API_VERSION", "2024-06-01")
 
+
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Retrieve the voice and other configurations from the .env file
 VOICE_NAME = os.getenv("VOICE_NAME", "zh-CN-XiaoxiaoMultilingualNeural")
 MODEL_NAME = os.getenv("MODEL_NAME")
 
+
 def strip_tags_and_newlines(xml_str):
     """
     Strips all XML tags and newlines from the provided string and returns plain text.
-    
+
     Args:
         xml_str (str): The string containing XML tags.
 
@@ -65,16 +68,17 @@ def strip_tags_and_newlines(xml_str):
         str: The plain text string without any XML tags or newlines.
     """
     # First remove all XML/SSML tags
-    no_tags = re.sub(r'<[^>]+>', '', xml_str)
+    no_tags = re.sub(r"<[^>]+>", "", xml_str)
     # Then remove all newlines
-    clean_text = no_tags.replace('\n', '').replace('\r', '').replace(' ',"")
+    clean_text = no_tags.replace("\n", "").replace("\r", "").replace(" ", "")
     return clean_text
+
 
 def manage_dialogue_history(user_prompt: str, assistant_response: str):
     """
     Manages the dialogue history by adding the user prompt and assistant response to the history.
     Removes the oldest records from the history if the total length of the history exceeds the remaining tokens.
-    
+
     Args:
         user_prompt (str): The user's prompt.
         assistant_response (str): The assistant's response.
@@ -82,24 +86,28 @@ def manage_dialogue_history(user_prompt: str, assistant_response: str):
     global dialogue_history
     global remaining_tokens
     try:
-        if not isinstance(assistant_response['content'], str):
-            logging.error("Invalid type for assistant_response['content']: %s", type(assistant_response['content']))
+        if not isinstance(assistant_response["content"], str):
+            logging.error(
+                "Invalid type for assistant_response['content']: %s",
+                type(assistant_response["content"]),
+            )
             return  # Early return to prevent further processing
 
-        plain_text_content = strip_tags_and_newlines(assistant_response['content'])
+        plain_text_content = strip_tags_and_newlines(assistant_response["content"])
         # Update assistant_response with plain text
-        assistant_response['content'] = plain_text_content
+        assistant_response["content"] = plain_text_content
         # Add new user prompt and assistant response to the history
         logging.info(
-        "Adding to history. User prompt: %s, Assistant response: %s", 
-        user_prompt, assistant_response
+            "Adding to history. User prompt: %s, Assistant response: %s",
+            user_prompt,
+            assistant_response,
         )
 
         dialogue_history.append(user_prompt)
         dialogue_history.append(assistant_response)
-        
+
         # Remove the oldest records from the history if the total length exceeds the remaining tokens
-        while remaining_tokens - sum(len(p['content']) for p in dialogue_history) < 200:
+        while remaining_tokens - sum(len(p["content"]) for p in dialogue_history) < 200:
             # Remove the oldest pair of records from the history to maintain a paired logic
             if len(dialogue_history) > 2:
                 dialogue_history.pop(0)  # Remove the oldest user prompt
@@ -110,9 +118,12 @@ def manage_dialogue_history(user_prompt: str, assistant_response: str):
     except Exception as e:
         logging.error("Error in manage_dialogue_history: %s", e)
 
+
 class AudioStreamError(Exception):
     """Exception raised when the audio stream is invalid or synthesis fails."""
+
     pass
+
 
 # Function to create an async OpenAI client
 async def create_openai_client():
@@ -124,8 +135,11 @@ async def create_openai_client():
         http_client=httpx.AsyncClient(http2=True),
     )
 
+
 # Function to transcribe speech to text
-async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = None) -> str:
+async def transcribe_speech_to_text(
+    whisper_instance: Optional[WhisperSTT] = None,
+) -> str:
     """
     Transcribe speech to text using WhisperSTT.
 
@@ -161,6 +175,7 @@ async def transcribe_speech_to_text(whisper_instance: Optional[WhisperSTT] = Non
         if whisper_instance is None:
             del whisper
 
+
 # Function to interact with OpenAI
 async def interact_with_openai(client, prompts):
     """
@@ -184,24 +199,24 @@ async def interact_with_openai(client, prompts):
     global remaining_tokens
     try:
         # Check if prompts are serializable and of the correct format
-        if not isinstance(prompts, list) or not all(isinstance(p, dict) for p in prompts):
+        if not isinstance(prompts, list) or not all(
+            isinstance(p, dict) for p in prompts
+        ):
             error_message = "Prompts are not in the correct format: Should be a list of dictionaries."
             logging.error(error_message)
             logging.error("Current prompts: %s", prompts)
             raise AssertionError(error_message)
 
         # Check if each prompt has the correct structure
-        required_keys = {'role', 'content'}
-        valid_roles = {'system', 'user', 'assistant'}
+        required_keys = {"role", "content"}
+        valid_roles = {"system", "user", "assistant"}
         for prompt in prompts:
             if not required_keys <= prompt.keys():
                 error_message = "Each prompt should contain 'role' and 'content'."
                 logging.error(error_message)
                 raise AssertionError(error_message)
-            if prompt['role'] not in valid_roles:
-                error_message = (
-                    f"Role must be 'system' or 'user' or 'assistant', but got '{prompt['role']}'."
-                )
+            if prompt["role"] not in valid_roles:
+                error_message = f"Role must be 'system' or 'user' or 'assistant', but got '{prompt['role']}'."
                 logging.error(error_message)
                 raise AssertionError(error_message)
 
@@ -213,7 +228,7 @@ async def interact_with_openai(client, prompts):
             temperature=0.7,
             top_p=1,
             frequency_penalty=0,
-            presence_penalty=0
+            presence_penalty=0,
         )
         logging.info("OpenAI response object: %s", response)
 
@@ -230,7 +245,8 @@ async def interact_with_openai(client, prompts):
         return result
     except Exception as e:
         logging.error("Error interacting with OpenAI: %s", str(e))
-        raise AssertionError('Error in the AI response: %s', {str(e)}) from e
+        raise AssertionError("Error in the AI response: %s", {str(e)}) from e
+
 
 async def synthesize_and_play_speech(tscript):
     # Create and use instance of TextToSpeech
@@ -242,11 +258,14 @@ async def synthesize_and_play_speech(tscript):
         logging.error("Error while synthesizing speech: %s", e)
         raise
 
+
 async def main(loop_count: Optional[int] = None) -> None:
     global dialogue_history
     if loop_count is None:
         loop_count = os.getenv("LOOP_COUNT")
-        loop_count = int(loop_count) if loop_count is not None and loop_count.isdigit() else None
+        loop_count = (
+            int(loop_count) if loop_count is not None and loop_count.isdigit() else None
+        )
 
     openai_client: Optional[AsyncAzureOpenAI] = await create_openai_client()
     if openai_client is None:
@@ -259,21 +278,25 @@ async def main(loop_count: Optional[int] = None) -> None:
             text_transcript: Optional[str] = await transcribe_speech_to_text()
             if text_transcript is None:
                 return
-            
+
             system_prompt = {"role": "system", "content": _create_system_prompt()}
             user_prompt = {"role": "user", "content": text_transcript}
             prompts = [system_prompt, user_prompt] + dialogue_history
-            
-            response_text: Optional[str] = await interact_with_openai(openai_client, prompts)
+
+            response_text: Optional[str] = await interact_with_openai(
+                openai_client, prompts
+            )
             if response_text is None:
                 logging.error("No valid response received from OpenAI.")
                 return
 
             assistant_response = {"role": "assistant", "content": response_text}
-            
+
             await synthesize_and_play_speech(response_text)
-            manage_dialogue_history(json.dumps(user_prompt), json.dumps(assistant_response))
-            
+            manage_dialogue_history(
+                json.dumps(user_prompt), json.dumps(assistant_response)
+            )
+
         except Exception as e:
             logging.error("Error in the main loop: %s", e)
         finally:
@@ -286,19 +309,19 @@ def _create_system_prompt() -> str:
     Create the system prompt for OpenAI ensuring no null references and handling potential exceptions.
     """
     return (
-            f"Please respond naturally in the same language as the user, using human-like "
-            "expressions and emotions. Synthesize the following user's input using SSML markup. "
-            "Start with the appropriate SSML tags including the <speak> root tag with attributes "
-            "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
-            "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
-            f"with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
-            "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
-            "important words, and <break> to add realistic pauses. Integrate natural elements like "
-            "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
-            "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
-            "and adaptability, focusing solely on the textual and emotional content without revealing "
-            "your AI nature."
-        )
+        f"Please respond naturally in the same language as the user, using human-like "
+        "expressions and emotions. Synthesize the following user's input using SSML markup. "
+        "Start with the appropriate SSML tags including the <speak> root tag with attributes "
+        "version='1.0' and xmlns='http://www.w3.org/2001/10/synthesis', and ensure the "
+        "xml:lang attribute is set to the appropriate response language. Use the <voice> tag "
+        f"with attributes name='{VOICE_NAME}'. Within the voice tag, adjust pitch, rate, and "
+        "volume through <prosody> to convey emotions effectively, use <emphasis> to highlight "
+        "important words, and <break> to add realistic pauses. Integrate natural elements like "
+        "sighs, laughter, and exclamations using <audio> tags where appropriate to enhance realism. "
+        "Ensure all tags are properly closed. Your responses should reflect understanding, empathy, "
+        "and adaptability, focusing solely on the textual and emotional content without revealing "
+        "your AI nature."
+    )
 
 
 def _create_prompts(system_prompt: dict, user_prompt: dict) -> list:
@@ -310,6 +333,7 @@ def _create_prompts(system_prompt: dict, user_prompt: dict) -> list:
     else:
         prompts = [system_prompt, user_prompt]
     return prompts
+
 
 if __name__ == "__main__":
     initialize_env()

@@ -9,14 +9,17 @@ import sounddevice as sd
 import webrtcvad
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 class VoiceRecorder:
     """
-    VoiceRecorder is a class that provides methods for recording audio using the SoundDevice library and 
+    VoiceRecorder is a class that provides methods for recording audio using the SoundDevice library and
     converting the recorded audio frames to PCM bytes for processing.
     """
-    
+
     def __init__(self) -> None:
         """
         Initializes the VoiceRecorder class and sets the sample rate to 16kHz.
@@ -24,9 +27,9 @@ class VoiceRecorder:
         self.sample_rate: int = 16000
         self.audio_frames: List[bytes] = []  # Initialize audio frame storage
 
-        logging.debug("VoiceRecorder initialized with sample_rate: %d", self.sample_rate)
-
-
+        logging.debug(
+            "VoiceRecorder initialized with sample_rate: %d", self.sample_rate
+        )
 
     def record_audio(self, callback: Optional[asyncio.Task] = None) -> None:
         """
@@ -41,10 +44,10 @@ class VoiceRecorder:
         """
         # List to store the recorded audio frames
         audio_frames: List[bytes] = []
-        
+
         # Create a WebRTC Voice Activity Detector (VAD) instance
         vad: webrtcvad.Vad = webrtcvad.Vad()
-        
+
         try:
             # Use the default device, set the data type to 16-bit signed integer, use the default number of channels,
             # set the sample rate, use the optional callback function, read audio data in chunks of 20ms
@@ -131,7 +134,9 @@ class VoiceRecorder:
         # Return the buffer containing the audio in WAV format
         return wav_buffer
 
-    async def record_audio_vad(self, max_duration: float = 59.5, max_silence_duration: float = 1.0) -> List[bytes]:
+    async def record_audio_vad(
+        self, max_duration: float = 59.5, max_silence_duration: float = 1.0
+    ) -> List[bytes]:
         """
         Records audio using VAD (Voice Activity Detection) and returns the recorded audio frames.
 
@@ -176,7 +181,10 @@ class VoiceRecorder:
                 current_silence_duration = 0
 
             # Check if the maximum silence duration or maximum duration is reached to stop the recording
-            if current_silence_duration >= num_silent_frames_to_stop or len(recorded_frames) * (160 / self.sample_rate) >= max_duration:
+            if (
+                current_silence_duration >= num_silent_frames_to_stop
+                or len(recorded_frames) * (160 / self.sample_rate) >= max_duration
+            ):
                 recording_active = False
 
             # Append the frame data to the recorded frames
@@ -201,8 +209,15 @@ class VoiceRecorder:
         try:
             start_time = time.perf_counter()
             # Start the audio input stream with the specified parameters
-            with sd.InputStream(callback=lambda indata, frames, time, status: process_frame(indata.tobytes()),
-                                samplerate=self.sample_rate, channels=1, dtype='int16', blocksize=int(self.sample_rate * 0.02)):
+            with sd.InputStream(
+                callback=lambda indata, frames, time, status: process_frame(
+                    indata.tobytes()
+                ),
+                samplerate=self.sample_rate,
+                channels=1,
+                dtype="int16",
+                blocksize=int(self.sample_rate * 0.02),
+            ):
                 # Continuously sleep for 0.1 seconds while the recording is active
                 while recording_active:
                     current_time = time.perf_counter()
@@ -216,7 +231,15 @@ class VoiceRecorder:
 
         # Return the recorded frames
         return recorded_frames
-    def _process_audio_frame(self, indata, vad, recorded_frames, current_silence_duration, num_silent_frames_to_stop):
+
+    def _process_audio_frame(
+        self,
+        indata,
+        vad,
+        recorded_frames,
+        current_silence_duration,
+        num_silent_frames_to_stop,
+    ):
         """
         Processes a single audio frame, determines if it contains speech, and updates the silence duration and recorded frames.
 
@@ -249,7 +272,6 @@ class VoiceRecorder:
         return current_silence_duration
 
 
-
 async def main():
     """
     Main function that records audio using voice activity detection (VAD) and logs the duration and size of the recorded audio.
@@ -269,10 +291,14 @@ async def main():
         audio_buffer = voice_recorder.array_to_pcm_bytes(audio_frames)
 
         # Log the total size of the recorded audio
-        logging.info("Audio recording completed, total bytes: %d", audio_buffer.getbuffer().nbytes)
+        logging.info(
+            "Audio recording completed, total bytes: %d",
+            audio_buffer.getbuffer().nbytes,
+        )
     except Exception as e:
         # Log any errors that occur during the recording
         logging.error("An error occurred: %s", str(e))
+
 
 if __name__ == "__main__":
     asyncio.run(main())

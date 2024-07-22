@@ -10,26 +10,31 @@ import shutil
 from voicerecorder import VoiceRecorder
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 class WhisperSTT:
     def __init__(self) -> None:
         load_dotenv()
-        self.api_key = os.getenv("AZURE_OPENAI_API_KEY",None)
-        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT",None)
+        self.api_key = os.getenv("AZURE_OPENAI_API_KEY", None)
+        self.endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", None)
         if not self.api_key or not self.endpoint:
-            raise EnvironmentError("Environment variables for Azure OpenAI Service not set")
+            raise EnvironmentError(
+                "Environment variables for Azure OpenAI Service not set"
+            )
         self.client = AsyncAzureOpenAI(
             azure_endpoint=self.endpoint,
             api_key=self.api_key,
             api_version=os.getenv("AZURE_API_VERSION", "2024-06-01"),
-            http_client=httpx.AsyncClient(http2=True)
+            http_client=httpx.AsyncClient(http2=True),
         )
 
     async def transcribe_audio(self, file_path: str) -> str:
         """Transcribes the audio from a file path."""
         try:
-            with open(file_path, 'rb') as audio_file:
+            with open(file_path, "rb") as audio_file:
                 response = await self.client.audio.transcriptions.create(
                     model=os.getenv("WHISPER_MODEL_NAME"), file=audio_file
                 )
@@ -37,12 +42,12 @@ class WhisperSTT:
         except Exception as e:
             logging.error("Error during transcription: %s", e)
             return "Failed to transcribe audio"
-            
+
     async def transcribe_audio_stream(self, audio_stream: io.BytesIO) -> str:
         """Transcribes audio from an io.BytesIO stream."""
         temp_file_path = save_temp_wav_file(audio_stream)
         try:
-            with open(temp_file_path, 'rb') as audio_file:
+            with open(temp_file_path, "rb") as audio_file:
                 response = await self.client.audio.transcriptions.create(
                     model=os.getenv("WHISPER_MODEL_NAME"), file=audio_file
                 )
@@ -53,7 +58,7 @@ class WhisperSTT:
         finally:
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
-    
+
 
 def save_temp_wav_file(audio_stream: io.BytesIO) -> str:
     """
@@ -65,12 +70,15 @@ def save_temp_wav_file(audio_stream: io.BytesIO) -> str:
     Returns:
         str: The path of the temporary WAV file.
     """
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav", mode="wb") as tmp_file:
+    with tempfile.NamedTemporaryFile(
+        delete=False, suffix=".wav", mode="wb"
+    ) as tmp_file:
         # Copy the audio stream to the temporary file
         shutil.copyfileobj(audio_stream, tmp_file)
         # Return the path of the temporary file
         tmp_file_path = tmp_file.name  # type: ignore
         return tmp_file_path
+
 
 async def main():
     whisper_stt = WhisperSTT()
@@ -90,6 +98,7 @@ async def main():
     finally:
         if temp_wav_file_path and os.path.exists(temp_wav_file_path):
             os.remove(temp_wav_file_path)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
