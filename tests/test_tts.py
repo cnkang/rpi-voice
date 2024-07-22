@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import patch, MagicMock, AsyncMock
 from httpx import HTTPStatusError, AsyncClient, Request,Response
 from pydub import AudioSegment
@@ -39,7 +40,15 @@ async def test_synthesize_speech_http_error():
         # Validate that an appropriate error is raised on HTTP failure
         with pytest.raises(RuntimeError):
             await tts_service.synthesize_speech("This should fail due to HTTP error")
-
+@pytest.mark.asyncio
+async def test_get_azure_cognitive_access_token_timeout():
+    tts_instance = tts.TextToSpeech()
+    tts_instance.subscription = "dummy_subscription"
+    tts_instance.region = "dummy_region"
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.side_effect = asyncio.TimeoutError()
+        with pytest.raises(Exception):
+            await tts_instance.get_azure_cognitive_access_token()
 
 @pytest.mark.asyncio
 async def test_get_azure_cognitive_access_token_successful():
@@ -61,7 +70,16 @@ async def test_get_azure_cognitive_access_token_http_error():
         # Validate that an appropriate error is raised on HTTP failure
         with pytest.raises(Exception):
             await tts_service.get_azure_cognitive_access_token()
-
+@pytest.mark.asyncio
+async def test_get_azure_cognitive_access_token_invalid_token():
+    tts_instance = tts.TextToSpeech()
+    tts_instance.subscription = "dummy_subscription"
+    tts_instance.region = "dummy_region"
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.text = ""
+        with pytest.raises(Exception):
+            await tts_instance.get_azure_cognitive_access_token()
 @pytest.mark.asyncio
 async def test_convert_to_ssml_already_formatted():
     tts_instance = create_tts_instance()
@@ -92,3 +110,10 @@ async def test_tts_main(mock_post):
             with patch('pydub.playback.play') as mock_play:
                 await tts.main()
                 assert mock_synthesize_speech.call_count == 3
+
+
+@patch('os.getenv', return_value=None)
+@patch('dotenv.load_dotenv', return_value=None)
+def test_missing_env_variables_raises_error(mock_load_dotenv, mock_getenv):
+    with pytest.raises(EnvironmentError):
+        tts.TextToSpeech()
